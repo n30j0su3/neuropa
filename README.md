@@ -1,100 +1,68 @@
 # NeuroPA
 
-> Tu segunda memoria local para capturar lo que aparece en tu cabeza, elegir el siguiente paso y volver a encontrarlo cuando lo necesites.
+> **AI Workspace / local-first harness** para pensar, crear y trabajar con memoria persistente. Las funciones de executive function son un módulo del workspace, no la identidad completa del producto.
 
 [![Licencia: AGPL-3.0](https://img.shields.io/badge/licencia-AGPL--3.0-blue.svg)](LICENSE)
 
-## ¿Qué es?
+## Qué es
 
-NeuroPA es un asistente personal pensado para cerebros con TDAH: cuando una idea, tarea o preocupación aparece, la guardas sin tener que organizarla en ese instante. Después puedes convertir ese caos en un siguiente paso pequeño, revisar tu día y recuperar lo importante sin depender de tu memoria de trabajo.
+NeuroPA es un workspace/harness de IA local-first: una base para capturar contexto, trabajar con memoria, ejecutar tareas y conservar el control de los datos. Incluye un módulo de funciones ejecutivas (captura, Today, Focus y Memory) para reducir fricción y recuperar continuidad.
 
-No intenta convertirte en una máquina de productividad. Te ayuda a volver al foco después de una interrupción, aparcar lo que no toca ahora y recordar por qué algo importaba. NeuroPA funciona en tu propio equipo, con una interfaz local y un lenguaje humano: menos fricción, más continuidad.
+No hace claims clínicos, no diagnostica y no sustituye atención profesional. La experiencia pública OSS está diseñada para funcionar completa localmente, sin cuenta ni SaaS obligatorio.
 
-## Instalación rápida
-
-### Con `uv` (recomendado)
-
-```bash
-uv tool install neuropa
-neuropa
-```
-
-### Con `pip`
-
-```bash
-python -m pip install neuropa
-neuropa
-```
-
-### Desde el código fuente
+## Quick start sin conocimientos técnicos
 
 ```bash
 git clone https://github.com/FreakingJSON/neuropa.git
 cd neuropa
-uv sync
-uv run neuropa
+scripts/install.sh
+scripts/run-neuropa.sh
 ```
 
-Al arrancar, NeuroPA abre automáticamente `http://127.0.0.1:8474` en tu navegador. Tus datos se guardan localmente; no necesitas crear una cuenta.
+Después abre `http://127.0.0.1:8474`. Para revisar sin cambiar nada: `scripts/install.sh --check`. Para automatización explícita: `scripts/install.sh --yes`.
 
-## Uso
+Guía bilingüe: [docs/SETUP.md](docs/SETUP.md).
+
+## Uso diario
 
 ```bash
-# Abrir NeuroPA y la interfaz local
-neuropa
+# Local-only (por defecto)
+scripts/run-neuropa.sh
 
-# Usar otro puerto
-NEUROPA_PORT=9000 neuropa
-# o
-neuropa --port 9000
+# LAN temporal en una red de confianza
+scripts/run-neuropa.sh --lan --port 8474
 
-# Ver dónde están tus datos y tu token local
-neuropa --status
+# Estado y exportación
+uv run neuropa --status
+uv run neuropa --export backup.json
 
-# Hacer una copia JSON de todo lo guardado
-neuropa --export backup.json
-# También puedes imprimirla en pantalla
-neuropa --export
-
-# Ver la versión instalada
-neuropa --version
+# Versión
+uv run neuropa --version
 ```
 
-Desde la interfaz puedes:
+Detén el proceso con `Ctrl+C`. Tus datos permanecen en tu equipo.
 
-- **Capturar**: guardar una idea, tarea o nota en segundos.
-- **Today**: elegir tu MIT (Most Important Thing), ver el parking lot y recuperar el ritmo.
-- **Memory**: guardar y consultar recuerdos con su fuente y nivel de confianza.
-- **Focus**: iniciar un bloque de concentración, pausarlo y cerrarlo sin perder el contexto.
+## Arquitectura pública / privada
 
-Pulsa `Ctrl+C` en la terminal para cerrar NeuroPA de forma limpia. Tus datos permanecen en tu equipo.
+- **Público OSS:** `neuropa/`, CLI, API local, frontend, almacenamiento local, harness y módulos de workspace. Es el camino completo local-first.
+- **Privado/separado:** cualquier SaaS gestionado, sincronización, colaboración o servicios operados por terceros. No es necesario para instalar ni usar el OSS público y sus políticas de datos son distintas.
+
+Por defecto la base de datos y el token viven en `~/.local/share/neuropa/` (o la ruta equivalente del sistema). `NEUROPA_DATA_DIR` permite elegir otra ubicación. No se requiere telemetría oculta. Al conectar proveedores externos u OpenCode, revisa qué prompts/archivos pueden salir del equipo.
+
+## OpenCode y Ollama
+
+OpenCode es un CLI gratuito opcional para trabajo de código/agentes. El instalador lo detecta y puede ofrecer `npm install -g opencode-ai` sólo con confirmación. Ollama no se instala automáticamente; si deseas usarlo, instálalo y configúralo por separado.
 
 ## Features
 
+- AI Workspace/harness local-first con memoria persistente.
 - Captura rápida tipo inbox, sin clasificación obligatoria.
-- Vista **Today** con prioridad, siguiente acción y recuperación.
-- Memoria con evidencia: cada afirmación puede conservar su fuente.
-- Bloques de foco con pausa, finalización y reflexión breve.
+- Módulo executive-function: Today, siguiente acción, parking lot y Focus.
+- Memoria con evidencia y fuentes.
 - API local protegida por token loopback.
-- Exportación e importación JSON para copias y portabilidad.
-- Router de proveedores preparado para uso local, BYOK o servicio gestionado.
-- Frontend premium servido desde la misma aplicación.
+- Exportación JSON para copias y portabilidad.
+- Router preparado para proveedores locales, BYOK o gestionados.
 - SQLite local con migraciones y modo WAL.
-
-## Privacidad primero
-
-NeuroPA es **local-first**: por defecto la base de datos y el token viven en tu máquina, en `~/.local/share/neuropa/` en Linux (o la ruta equivalente de tu sistema). Puedes cambiar la ubicación con `NEUROPA_DATA_DIR`.
-
-No incluye telemetría ni rastreo oculto. La API solo se expone en loopback (`127.0.0.1`) y las funciones protegidas requieren el token local. Si conectas un proveedor externo, esa decisión es tuya y debes revisar sus propias políticas de privacidad.
-
-## Self-hosted vs SaaS
-
-NeuroPA es **open-core**:
-
-- **Self-hosted**: ejecuta todo localmente, controla tus datos, proveedores, backups y actualizaciones.
-- **SaaS / gestionado**: puede ofrecer comodidad, sincronización, colaboración o soporte, pero implica confiar datos a un tercero y revisar sus condiciones.
-
-El núcleo local sigue siendo útil por sí solo. El servicio gestionado no es obligatorio para empezar.
 
 ## Para developers
 
@@ -103,15 +71,8 @@ uv sync --extra dev
 uv run pytest -q
 ```
 
-Contribuir es sencillo:
+Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para el flujo de contribución.
 
-1. Abre una issue explicando el problema o la propuesta.
-2. Crea una rama pequeña y enfocada.
-3. Añade o actualiza pruebas para el comportamiento nuevo.
-4. Ejecuta la suite completa y abre un pull request.
+## Créditos y licencias
 
-Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para estilo de commits, pruebas y expectativas de revisión.
-
-## Licencia
-
-NeuroPA se distribuye bajo la licencia [GNU Affero General Public License v3.0](LICENSE). Si modificas y ofreces este software a través de una red, conserva las libertades de la AGPL y publica el código fuente correspondiente.
+NeuroPA se distribuye bajo [GNU Affero General Public License v3.0](LICENSE). El mapa de licencias, atribuciones upstream y el límite del SDK están documentados en [LICENSES.md](LICENSES.md); el SDK futuro conserva [Apache-2.0](LICENSE.sdk-Apache-2.0). Las contribuciones siguen [CONTRIBUTING.md](CONTRIBUTING.md).
