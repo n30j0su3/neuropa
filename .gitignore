@@ -1,10 +1,62 @@
+# Python
 __pycache__/
 *.py[cod]
-.venv/
+*$py.class
+*.so
 .pytest_cache/
-*.egg-info/
-.dist/
-build/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# NeuroPA local data and secrets
 *.db
-*.db-*
+*.db-shm
+*.db-wal
+data/
+.neuropa/
+neuropa-data/
+token
+**/token
+*.pem
+*.key
 .env
+.env.*
+!.env.example
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and local exports
+*.log
+*.tmp
+*.bak
+backup*.json
+export*.json
