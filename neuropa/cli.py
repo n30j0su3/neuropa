@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import ipaddress
+import secrets
 import socket
 import threading
 import webbrowser
@@ -15,6 +16,30 @@ from neuropa.domain import ENTITY_TYPES, Database, default_data_dir
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8474
+
+
+def validate_lan_cidr(value: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network:
+    """Validate an explicitly trusted, private LAN network before binding."""
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError as exc:
+        raise ValueError(f"CIDR LAN inválido: {value}") from exc
+    minimum_prefix = 24 if network.version == 4 else 64
+    if network.prefixlen < minimum_prefix:
+        raise ValueError(f"La red LAN debe ser como mínimo /{minimum_prefix}: {network}")
+    private = network.is_private and (
+        network.version == 4
+        or network.is_link_local
+        or network.network_address in ipaddress.ip_network("fc00::/7")
+    )
+    if not network.is_private or network.is_reserved or network.is_loopback or network.is_unspecified or network.is_multicast or (network.version == 6 and not (network.network_address.exploded.startswith("fd") or network.network_address.exploded.startswith("fe80"))):
+        raise ValueError(f"La red LAN debe ser privada y no especial: {network}")
+    return network
+
+
+def generate_pairing_code() -> str:
+    """Return a one-time, URL-fragment-safe LAN pairing code."""
+    return secrets.token_urlsafe(24)
 
 
 def package_version() -> str:
@@ -98,14 +123,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     browser_url = f"http://{DEFAULT_HOST}:{args.port}"
     display_url = browser_url
     if args.lan:
+        from neuropa.api.app import create_app, validate_lan_cidr
         address, detected_cidr = local_lan_address()
         cidr = args.lan_cidr or detected_cidr
-        # Validate before exposing the server.
-        ipaddress.ip_network(cidr, strict=False)
-        os.environ["NEUROPA_LAN_CIDR"] = cidr
+        network = validate_lan_cidr(cidr)
+        pairing_code = generate_pairing_code()
+        os.environ["NEUROPA_LAN_CIDR"] = str(network)
+        os.environ["NEUROPA_PAIRING_CODE"] = pairing_code
         host = "0.0.0.0"
         display_url = f"http://{address}:{args.port}"
-        print(f"LAN temporal habilitada para {cidr}. Úsala sólo en una red de confianza.")
+        browser_url = f"{display_url}#pair={pairing_code}"
+        print(f"LAN temporal habilitada para {network}. Úsala sólo en una red de confianza.")
+        print(f"Enlace LAN de emparejamiento: {browser_url}")
+        print(f"Código de emparejamiento de un solo uso: {pairing_code}")
     threading.Timer(0.5, webbrowser.open, args=(browser_url,)).start()
     print(f"NeuroPA está listo en {display_url}. Pulsa Ctrl+C para salir.")
     try:

@@ -36,34 +36,6 @@ confirm() {
   [[ "$answer" == "y" || "$answer" == "Y" || "$answer" == "yes" || "$answer" == "YES" ]]
 }
 
-install_uv() {
-  if ! confirm "uv no está instalado. ¿Descargar y ejecutar el instalador oficial visible ahora? / uv is missing. Download and run the official installer now?"; then
-    cat >&2 <<'EOF'
-Instala uv manualmente desde https://docs.astral.sh/uv/getting-started/installation/
-Luego vuelve a ejecutar este script. / Install uv manually, then run this script again.
-EOF
-    return 1
-  fi
-  if ! has_command curl; then
-    cat >&2 <<'EOF'
-No encuentro curl. Descarga el instalador de uv desde la URL oficial y ejecútalo de forma visible.
-I could not find curl. Download the uv installer from the official URL and run it visibly.
-EOF
-    return 1
-  fi
-  local installer
-  installer="$(mktemp "${TMPDIR:-/tmp}/neuropa-uv-installer.XXXXXX")"
-  trap 'rm -f -- "$installer"' RETURN
-  printf 'Descargando instalador uv en %s (visible; no se ejecuta vía pipe).\n' "$installer"
-  curl --fail --location --show-error --output "$installer" https://astral.sh/uv/install.sh
-  bash "$installer"
-  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-  has_command uv || {
-    echo "uv se instaló pero no está en PATH; abre una terminal nueva y reintenta." >&2
-    return 1
-  }
-}
-
 while (($#)); do
   case "$1" in
     --yes) YES=1 ;;
@@ -85,7 +57,15 @@ else
     echo 'Modo check: no se harán cambios / check mode: no changes will be made.'
     exit 0
   fi
-  install_uv
+  cat >&2 <<'EOF'
+uv no está instalado. Este instalador no descarga ni ejecuta shell remoto.
+Instálalo manualmente siguiendo la documentación oficial:
+https://docs.astral.sh/uv/getting-started/installation/
+Luego vuelve a ejecutar scripts/install.sh.
+uv is missing. This installer will not download or execute remote shell code.
+Install it manually using the official instructions, then run scripts/install.sh again.
+EOF
+  exit 1
 fi
 
 if (( CHECK_ONLY )); then
@@ -107,21 +87,24 @@ fi
 
 if has_command opencode; then
   printf 'OK: OpenCode CLI (%s)\n' "$(command -v opencode)"
+  printf 'Detected version / versión detectada: %s\n' "$(opencode --version 2>/dev/null || true)"
 elif has_command opencode-ai; then
   printf 'OK: OpenCode CLI (%s)\n' "$(command -v opencode-ai)"
+  printf 'Detected version / versión detectada: %s\n' "$(opencode-ai --version 2>/dev/null || true)"
 else
   echo 'INFO: OpenCode CLI no detectado / not detected.'
   if (( CHECK_ONLY )); then
-    echo 'Recomendado: instala OpenCode gratis con npm install -g opencode-ai (tras revisar el comando).'
+    echo 'Recomendado: instala OpenCode revisado con npm install -g opencode-ai@1.15.6 (tras revisar el comando).'
   elif has_command npm; then
-    if confirm '¿Instalar OpenCode CLI gratis con npm install -g opencode-ai? / Install the free OpenCode CLI now?'; then
-      npm install -g opencode-ai
-      echo 'OpenCode instalado. Ejecuta opencode para configurarlo.'
+    if confirm '¿Instalar OpenCode CLI revisado con npm install -g opencode-ai@1.15.6? / Install the reviewed OpenCode CLI now?'; then
+      npm install -g opencode-ai@1.15.6
+      echo 'OpenCode instalado. Versión detectada / detected version:'
+      opencode --version 2>/dev/null || opencode-ai --version 2>/dev/null || true
     else
-      echo 'OpenCode omitido; puedes instalarlo después con: npm install -g opencode-ai'
+      echo 'OpenCode omitido; puedes instalarlo después con: npm install -g opencode-ai@1.15.6'
     fi
   else
-    echo 'npm no está disponible. Instala Node.js/npm y luego ejecuta: npm install -g opencode-ai'
+    echo 'npm no está disponible. Instala Node.js/npm y luego ejecuta: npm install -g opencode-ai@1.15.6'
   fi
 fi
 

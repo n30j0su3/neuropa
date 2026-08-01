@@ -29,3 +29,8 @@ testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["neuropa"]
+
+[dependency-groups]
+dev = [
+    "playwright==1.62.0",
+]

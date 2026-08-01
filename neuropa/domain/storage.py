@@ -55,9 +55,10 @@ class Database:
     def close(self) -> None:
         self.conn.close()
 
-    def create(self, obj: T) -> T:
+    def create(self, obj: T, *, commit: bool = True) -> T:
         self.conn.execute("INSERT INTO entities VALUES (?, ?, ?, ?, ?, ?)", (obj.id, obj.entity_type, json.dumps(obj.to_dict()), obj.created_at, obj.updated_at, obj.deleted_at))
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
         return obj
 
     def get(self, entity_type: str, obj_id: str, include_deleted: bool = False) -> Entity | None:
@@ -93,6 +94,18 @@ class Database:
         self.conn.execute("UPDATE entities SET payload=?, updated_at=?, deleted_at=? WHERE id=?", (json.dumps(updated.to_dict()), updated.updated_at, updated.deleted_at, updated.id))
         self.conn.commit()
         return updated
+
+    def replace_entities(self, objects: list[Entity]) -> None:
+        """Atomically replace all entities after the caller validates every row."""
+        try:
+            self.conn.execute("BEGIN")
+            self.conn.execute("DELETE FROM entities")
+            for obj in objects:
+                self.create(obj, commit=False)
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def soft_delete(self, entity_type: str, obj_id: str) -> bool:
         stamp = now_iso()

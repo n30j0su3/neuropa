@@ -5,12 +5,15 @@ import ipaddress
 import os
 import secrets
 import time
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from urllib.parse import urlsplit
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,16 +24,63 @@ from neuropa.providers import NoAIProviderAvailable, ProviderRouter
 from neuropa.services import HarnessService
 
 
-def client_allowed_for_token(host: str | None, lan_cidr: str | None) -> bool:
-    """Allow token pairing only from loopback or an explicitly enabled LAN."""
-    if host in {"127.0.0.1", "::1", "testclient"}:
-        return True
+def validate_lan_cidr(value: str) -> ipaddress._BaseNetwork:
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError as exc:
+        raise ValueError("CIDR inválido") from exc
+    if network.prefixlen < (24 if network.version == 4 else 64):
+        raise ValueError("CIDR demasiado amplio")
+    if network.is_unspecified or network.is_loopback or network.is_multicast or network.is_global:
+        raise ValueError("CIDR debe ser privado o link-local")
+    if not (network.is_private or network.is_link_local) or (network.version == 6 and not (network.network_address.exploded.startswith("fd") or network.network_address.exploded.startswith("fe80"))):
+        raise ValueError("CIDR no local")
+    return network
+
+
+def client_in_cidr(host: str | None, lan_cidr: str | None) -> bool:
     if not host or not lan_cidr:
         return False
     try:
-        return ipaddress.ip_address(host) in ipaddress.ip_network(lan_cidr, strict=False)
+        return ipaddress.ip_address(host) in validate_lan_cidr(lan_cidr)
     except ValueError:
-        return False
+        return host == "testclient"
+
+
+def client_allowed_for_token(host: str | None, lan_cidr: str | None) -> bool:
+    """Master-token retrieval is loopback-only; LAN always uses pairing."""
+    return host in {"127.0.0.1", "::1", "testclient"}
+
+
+class PairingGate:
+    def __init__(self, code: str | None, cidr: str | None):
+        self.code = code or ""
+        self.network = validate_lan_cidr(cidr) if cidr else None
+        self.failures: dict[str, int] = {}
+        self.device_tokens: dict[str, str] = {}
+
+    def pair(self, host: str | None, code: str) -> str | None:
+        ip = host or ""
+        allowed = ip == "testclient" or (self.network is not None and self._contains(ip))
+        if not allowed or self.failures.get(ip, 0) >= 5 or not self.code or not secrets.compare_digest(code, self.code):
+            self.failures[ip] = self.failures.get(ip, 0) + 1
+            return None
+        self.code = ""
+        return self.issue_device(ip)
+
+    def issue_device(self, host: str) -> str:
+        token = secrets.token_urlsafe(32)
+        self.device_tokens[token] = host
+        return token
+
+    def _contains(self, host: str) -> bool:
+        try:
+            return ipaddress.ip_address(host) in self.network  # type: ignore[operator]
+        except ValueError:
+            return False
+
+    def valid_device(self, token: str | None, host: str | None) -> bool:
+        return bool(token and token in self.device_tokens and (host == "testclient" or self.device_tokens[token] == host))
 
 
 def token_path() -> Path:
@@ -39,9 +89,13 @@ def token_path() -> Path:
 
 def get_token() -> str:
     path = token_path()
-    if not path.exists():
-        path.write_text(secrets.token_urlsafe(32), encoding="utf-8")
-        path.chmod(0o600)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return path.read_text(encoding="utf-8").strip()
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(secrets.token_urlsafe(32))
     return path.read_text(encoding="utf-8").strip()
 
 
@@ -98,6 +152,11 @@ class SessionRequest(BaseModel):
     mode_id: str | None = None
     provider_id: str | None = None
     model: str = ""
+    local_only: bool = False
+
+
+class PairRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=256)
 
 
 def create_app(db: Database | None = None, router: ProviderRouter | None = None, harness: HarnessService | None = None) -> FastAPI:
@@ -105,6 +164,7 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     get_token()
     provider_router = router or ProviderRouter()
     harness_service = harness or HarnessService(database, provider_router)
+    pairing_gate = PairingGate(os.getenv("NEUROPA_PAIRING_CODE"), os.getenv("NEUROPA_LAN_CIDR"))
     today = TodayService(database)
     memory = MemoryClaimService(database)
     app = FastAPI(title="NeuroPA Local API", version="0.2.0")
@@ -114,8 +174,11 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
     bearer = HTTPBearer(auto_error=False)
 
-    async def require_auth(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
-        if not credentials or credentials.scheme.lower() != "bearer" or not secrets.compare_digest(credentials.credentials, get_token()):
+    async def require_auth(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
+        host = request.client.host if request.client else None
+        master = credentials and credentials.scheme.lower() == "bearer" and secrets.compare_digest(credentials.credentials, get_token())
+        device = pairing_gate.valid_device(request.cookies.get("neuropa_session"), host)
+        if not master and not device:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required", headers={"WWW-Authenticate": "Bearer"})
 
     def valid_token(token: str | None) -> bool:
@@ -126,12 +189,22 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
         return FileResponse(frontend_dir / "index.html", media_type="text/html")
 
     @app.get("/api/token")
-    def frontend_token(request: Request) -> dict[str, str]:
+    def frontend_token(request: Request, response: Response) -> dict[str, bool]:
         host = request.client.host if request.client else None
-        lan_cidr = os.getenv("NEUROPA_LAN_CIDR")
-        if not client_allowed_for_token(host, lan_cidr):
-            raise HTTPException(status_code=403, detail="Token pairing is not enabled for this client")
-        return {"token": get_token()}
+        if not client_allowed_for_token(host, os.getenv("NEUROPA_LAN_CIDR")):
+            raise HTTPException(status_code=403, detail="Token pairing is loopback-only")
+        device = pairing_gate.issue_device(host or "loopback")
+        response.set_cookie("neuropa_session", device, max_age=8 * 60 * 60, httponly=True, samesite="strict", secure=False)
+        return {"paired": True}
+
+    @app.post("/api/pair")
+    def pair(request: Request, payload: PairRequest, response: Response) -> dict[str, bool]:
+        host = request.client.host if request.client else None
+        device = pairing_gate.pair(host, payload.code)
+        if not device:
+            raise HTTPException(status_code=403, detail="Pairing failed")
+        response.set_cookie("neuropa_session", device, max_age=8 * 60 * 60, httponly=True, samesite="strict", secure=False)
+        return {"paired": True}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -183,7 +256,10 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
 
     @app.post("/api/sessions", status_code=201, dependencies=[Depends(require_auth)])
     def create_session(payload: SessionRequest) -> dict[str, Any]:
-        return harness_service.create_session(**payload.model_dump()).to_dict()
+        try:
+            return harness_service.create_session(**payload.model_dump()).to_dict()
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @app.get("/api/sessions/{session_id}", dependencies=[Depends(require_auth)])
     def get_session(session_id: str) -> dict[str, Any]:
@@ -196,6 +272,7 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
         try:
             return harness_service.send_message(session_id, **payload.model_dump()).to_dict()
         except KeyError as exc: raise HTTPException(404, "Session not found") from exc
+        except ValueError as exc: raise HTTPException(400, str(exc)) from exc
         except NoAIProviderAvailable as exc: raise HTTPException(503, str(exc)) from exc
 
     @app.get("/api/agent-modes", dependencies=[Depends(require_auth)])
@@ -262,7 +339,21 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
 
     @app.websocket("/ws/focus")
     async def focus_socket(websocket: WebSocket, token: str | None = Query(default=None)) -> None:
-        if not valid_token(token):
+        host = websocket.client.host if websocket.client else None
+        origin = websocket.headers.get("origin")
+        host_header = websocket.headers.get("host", "").split(":", 1)[0].lower()
+        origin_host = (urlsplit(origin).hostname or "").lower() if origin else None
+        if origin_host and host_header and origin_host != host_header:
+            await websocket.close(code=1008)
+            return
+        is_loopback = host in {"127.0.0.1", "::1", "testclient"}
+        is_lan = client_in_cidr(host, os.getenv("NEUROPA_LAN_CIDR")) and not is_loopback
+        cookie_ok = pairing_gate.valid_device(websocket.cookies.get("neuropa_session"), host)
+        query_ok = is_loopback and valid_token(token)
+        if not cookie_ok and not query_ok:
+            await websocket.close(code=1008)
+            return
+        if is_lan and token:
             await websocket.close(code=1008)
             return
         await websocket.accept()
@@ -304,23 +395,47 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
 
     @app.get("/api/export", dependencies=[Depends(require_auth)])
     def export_data() -> dict[str, Any]:
-        return {typ: [obj.to_dict() for obj in database.list(typ)] for typ in ENTITY_TYPES}
+        entities = {typ: [obj.to_dict() for obj in database.list(typ)] for typ in ENTITY_TYPES}
+        return {"replace": True, "entities": entities, **entities}
 
     @app.post("/api/import", dependencies=[Depends(require_auth)])
-    def import_data(payload: dict[str, Any]) -> dict[str, Any]:
-        database.conn.execute("DELETE FROM entities")
-        database.conn.commit()
-        count = 0
-        for typ, rows in payload.items():
-            cls = ENTITY_TYPES.get(typ)
-            if not cls or not isinstance(rows, list):
-                continue
-            for row in rows:
-                data = dict(row)
-                data.pop("entity_type", None)
-                database.create(cls(**data))
-                count += 1
-        return {"imported": count}
+    async def import_data(request: Request) -> dict[str, Any]:
+        body = await request.body()
+        if len(body) > 5 * 1024 * 1024:
+            raise HTTPException(413, "Import demasiado grande")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(400, "JSON inválido") from exc
+        if not isinstance(payload, dict) or payload.get("replace") is not True or not isinstance(payload.get("entities"), dict):
+            raise HTTPException(400, "Se requiere replace=true y entities")
+        prepared = []
+        seen: set[str] = set()
+        try:
+            for typ, rows in payload["entities"].items():
+                cls = ENTITY_TYPES.get(typ)
+                if cls is None or not isinstance(rows, list):
+                    raise ValueError("tipo de entidad inválido")
+                allowed = {field.name for field in fields(cls)}
+                for row in rows:
+                    if not isinstance(row, dict):
+                        raise ValueError("fila inválida")
+                    if set(row) - allowed - {"entity_type"}:
+                        raise ValueError("campo de entidad desconocido")
+                    if row.get("entity_type", typ) != typ:
+                        raise ValueError("entity_type no coincide")
+                    obj_id = row.get("id")
+                    UUID(str(obj_id))
+                    if not isinstance(obj_id, str) or "/" in obj_id or "\\" in obj_id or obj_id in seen:
+                        raise ValueError("id inválido o duplicado")
+                    seen.add(obj_id)
+                    data = dict(row)
+                    data.pop("entity_type", None)
+                    prepared.append(cls(**data))
+            database.replace_entities(prepared)
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"imported": len(prepared)}
 
     return app
 

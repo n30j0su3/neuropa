@@ -20,7 +20,10 @@ def test_root_serves_premium_spa_and_token_is_loopback_only(tmp_path, monkeypatc
 
     token = client.get("/api/token")
     assert token.status_code == 200
-    assert token.json()["token"] == (tmp_path / "data" / "token").read_text().strip()
+    assert token.json() == {"paired": True}
+    assert "token" not in token.json()
+    assert "httponly" in token.headers["set-cookie"].lower()
+    assert client.get("/api/sessions").status_code == 200
 
 
 def test_spa_contains_required_views_and_accessibility_contract(tmp_path, monkeypatch):

@@ -23,11 +23,11 @@ def test_harness_defaults_to_clarity_mode(tmp_path):
     db.close()
 
 
-def test_token_access_is_loopback_unless_explicit_lan_cidr():
+def test_master_token_access_is_always_loopback_only():
     assert client_allowed_for_token("127.0.0.1", None)
     assert client_allowed_for_token("::1", None)
     assert not client_allowed_for_token("192.168.1.50", None)
-    assert client_allowed_for_token("192.168.1.50", "192.168.1.0/24")
+    assert not client_allowed_for_token("192.168.1.50", "192.168.1.0/24")
     assert not client_allowed_for_token("192.168.2.50", "192.168.1.0/24")
     assert not client_allowed_for_token("not-an-ip", "192.168.1.0/24")
 

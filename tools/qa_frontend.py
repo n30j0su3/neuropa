@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+except ModuleNotFoundError as exc:  # fail closed: stale evidence must never look green
+    sync_playwright = None
+    PLAYWRIGHT_IMPORT_ERROR = exc
+else:
+    PLAYWRIGHT_IMPORT_ERROR = None
 
 BASE_URL = "http://127.0.0.1:8474/"
 VIEWPORTS = {"desktop": (1600, 1000), "tablet": (768, 900), "mobile": (480, 860)}
@@ -10,6 +16,10 @@ OUT = Path(__file__).resolve().parents[1] / "docs" / "evidence" / "qa-v2"
 
 
 def main() -> int:
+    if sync_playwright is None:
+        print(f"FAIL CLOSED: Playwright is unavailable: {PLAYWRIGHT_IMPORT_ERROR}")
+        print("Run: uv sync --dev && uv run playwright install chromium")
+        return 2
     OUT.mkdir(parents=True, exist_ok=True)
     results: dict[str, dict] = {}
     with sync_playwright() as p:
@@ -33,7 +43,8 @@ def main() -> int:
               overflowX: document.documentElement.scrollWidth > innerWidth,
               composerWidth: document.querySelector('.composer').getBoundingClientRect().width,
               composerBottom: document.querySelector('.composer').getBoundingClientRect().bottom,
-              targetMin: Math.min(...Array.from(document.querySelectorAll('button')).map(x => x.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0).map(rect => rect.height)),
+              actionableTargets: Array.from(document.querySelectorAll('button,input,textarea,select,[role="button"]')).filter(x => getComputedStyle(x).display !== 'none' && getComputedStyle(x).visibility !== 'hidden' && x.getClientRects().length).map(x => ({tag:x.tagName, id:x.id, label:x.getAttribute('aria-label') || x.textContent.trim().slice(0,60), width:x.getBoundingClientRect().width, height:x.getBoundingClientRect().height})),
+              targetMin: Math.min(...Array.from(document.querySelectorAll('button,input,textarea,select,[role="button"]')).filter(x => getComputedStyle(x).display !== 'none' && getComputedStyle(x).visibility !== 'hidden' && x.getClientRects().length).map(x => x.getBoundingClientRect().height)),
               visibleNav: Array.from(document.querySelectorAll('.primary-nav [data-view]')).filter(x => getComputedStyle(x).display !== 'none').map(x => x.dataset.view)
             })""")
 
@@ -62,7 +73,7 @@ def main() -> int:
                 and not bad_responses
                 and provider_cards >= 4
                 and palette_visible
-                and (name != "mobile" or metrics["targetMin"] >= 44)
+                and metrics["targetMin"] >= 44
                 and (name != "mobile" or metrics["visibleNav"] == expected_mobile_nav)
             )
             results[name] = {

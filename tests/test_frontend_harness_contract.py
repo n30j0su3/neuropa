@@ -31,6 +31,7 @@ def test_harness_shell_has_real_navigation_and_workspace_contract():
 def test_harness_uses_real_api_endpoints_and_safe_runtime_behaviors():
     for endpoint in (
         "/api/token",
+        "/api/pair",
         "/api/setup/detect",
         "/api/providers/status",
         "/api/workspaces",
@@ -50,6 +51,21 @@ def test_harness_uses_real_api_endpoints_and_safe_runtime_behaviors():
     assert "wizard_done" in HTML
     assert "textContent" in HTML
     assert "innerHTML" not in HTML
+    assert "#pair=" in HTML
+    assert "history.replaceState" in HTML
+
+
+def test_harness_pairing_never_persists_or_sends_bearer_tokens():
+    assert "sessionStorage" not in HTML
+    assert "localStorage.setItem('token'" not in HTML
+    assert "localStorage.setItem(\"token\"" not in HTML
+    assert "state={token:" not in HTML
+    assert "Emparejar" in HTML
+
+
+def test_harness_has_shared_modal_accessibility_contract():
+    for marker in ("focus trap", "inert", "Tab", "Shift", "44px"):
+        assert marker in HTML
 
 
 def test_harness_is_standalone_and_honest_about_roadmap():

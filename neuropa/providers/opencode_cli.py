@@ -84,9 +84,9 @@ class OpenCodeCLI:
         if not self.health():
             raise OpenCodeUnavailable("OpenCode CLI no está instalado o no está disponible")
         prompt = "\n\n".join(f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in messages)
-        command = [self.executable, "run", "--pure", "--format", "json", "-m", model or DEFAULT_MODEL, prompt]
+        command = [self.executable, "run", "--pure", "--format", "json", "-m", model or DEFAULT_MODEL]
         try:
-            result = subprocess.run(command, shell=False, cwd=str(workspace) if workspace else None, capture_output=True, text=True, timeout=timeout or self.timeout)
+            result = subprocess.run(command, input=prompt, shell=False, cwd=str(workspace) if workspace else None, capture_output=True, text=True, timeout=timeout or self.timeout)
         except subprocess.TimeoutExpired as exc:
             raise OpenCodeTimeout("OpenCode agotó el tiempo de espera") from exc
         except OSError as exc:

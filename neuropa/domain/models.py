@@ -155,6 +155,7 @@ class ChatSession(Entity):
     mode_id: str | None = None
     provider_id: str | None = None
     model: str = ""
+    local_only: bool = False
     status: str = "active"
     summary: dict[str, Any] | str = field(default_factory=dict)
     source_refs: list[str] = field(default_factory=list)

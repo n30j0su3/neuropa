@@ -28,6 +28,14 @@ def test_installer_scripts_have_valid_bash_syntax():
         assert result.returncode == 0, result.stderr
 
 
+def test_installer_does_not_execute_remote_uv_shell_and_pins_opencode():
+    installer = (SCRIPTS / "install.sh").read_text(encoding="utf-8")
+    assert 'bash "$installer"' not in installer
+    assert "npm install -g opencode-ai@1.15.6" in installer
+    assert "npm install -g opencode-ai\n" not in installer
+    assert "detected version" in installer.lower()
+
+
 def test_install_check_is_read_only(tmp_path: Path):
     copied_scripts = tmp_path / "scripts"
     shutil.copytree(SCRIPTS, copied_scripts)

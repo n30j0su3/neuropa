@@ -9,9 +9,10 @@ usage() {
 NeuroPA runner / lanzador de NeuroPA
 
 Usage / Uso:
-  scripts/run-neuropa.sh [--lan] [--port PORT]
+  scripts/run-neuropa.sh [--lan] [--lan-cidr CIDR] [--port PORT]
 
   --lan          Comparte temporalmente en la LAN de confianza / temporary trusted-LAN access
+  --lan-cidr CIDR Red privada explícita (mínimo /24 IPv4 o /64 IPv6)
   --port PORT    Puerto HTTP (por defecto 8474) / HTTP port (default 8474)
   -h,--help      Muestra esta ayuda / show this help
 EOF
@@ -21,6 +22,10 @@ args=()
 while (($#)); do
   case "$1" in
     --lan) args+=("--lan") ;;
+    --lan-cidr)
+      (($# >= 2)) || { echo '--lan-cidr requiere un valor / requires a value' >&2; exit 2; }
+      args+=("--lan-cidr" "$2"); shift ;;
+    --lan-cidr=*) args+=("--lan-cidr" "${1#*=}") ;;
     --port)
       (($# >= 2)) || { echo '--port requiere un valor / requires a value' >&2; exit 2; }
       args+=("--port" "$2"); shift ;;
