@@ -6,7 +6,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,6 +73,10 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None)
     today = TodayService(database)
     memory = MemoryClaimService(database)
     app = FastAPI(title="NeuroPA Local API", version="0.2.0")
+    frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
+    assets_dir = frontend_dir / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
     bearer = HTTPBearer(auto_error=False)
 
     async def require_auth(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
@@ -79,6 +85,18 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None)
 
     def valid_token(token: str | None) -> bool:
         return bool(token and secrets.compare_digest(token, get_token()))
+
+    @app.get("/")
+    def frontend() -> FileResponse:
+        return FileResponse(frontend_dir / "index.html", media_type="text/html")
+
+    @app.get("/api/token")
+    def frontend_token(request: Request) -> dict[str, str]:
+        # TestClient identifies as testclient; production access remains loopback-only.
+        host = request.client.host if request.client else None
+        if host not in {"127.0.0.1", "::1", "testclient"}:
+            raise HTTPException(status_code=403, detail="Token is only available from loopback")
+        return {"token": get_token()}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
