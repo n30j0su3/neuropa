@@ -12,10 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
-from neuropa.domain import Database, InboxItem, Task, FocusSession, MemoryClaim, ENTITY_TYPES, default_data_dir
+from neuropa.domain import Database, InboxItem, Task, FocusSession, MemoryClaim, ENTITY_TYPES, default_data_dir, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Artifact
 from neuropa.domain.today import TodayService
 from neuropa.memory import MemoryClaimService
 from neuropa.providers import NoAIProviderAvailable, ProviderRouter
+from neuropa.services import HarnessService
 
 
 def token_path() -> Path:
@@ -62,14 +63,34 @@ class MemoryQueryRequest(BaseModel):
     query: str = Field(min_length=1)
 
 
-class ImportRequest(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class HarnessMessageRequest(BaseModel):
+    content: str = Field(min_length=1)
+    mode_id: str | None = None
+    provider: str | None = None
+    model: str = ""
+    privacy_sensitive: bool = False
 
 
-def create_app(db: Database | None = None, router: ProviderRouter | None = None) -> FastAPI:
+class WorkspaceRequest(BaseModel):
+    name: str = Field(min_length=1)
+    description: str = ""
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionRequest(BaseModel):
+    title: str = "Nueva sesión"
+    workspace_id: str | None = None
+    project_id: str | None = None
+    mode_id: str | None = None
+    provider_id: str | None = None
+    model: str = ""
+
+
+def create_app(db: Database | None = None, router: ProviderRouter | None = None, harness: HarnessService | None = None) -> FastAPI:
     database = db or Database()
     get_token()
     provider_router = router or ProviderRouter()
+    harness_service = harness or HarnessService(database, provider_router)
     today = TodayService(database)
     memory = MemoryClaimService(database)
     app = FastAPI(title="NeuroPA Local API", version="0.2.0")
@@ -133,6 +154,58 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None)
     @app.get("/api/providers/status", dependencies=[Depends(require_auth)])
     def providers_status() -> dict[str, Any]:
         return provider_router.status()
+
+    @app.get("/api/workspaces", dependencies=[Depends(require_auth)])
+    def list_workspaces() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("workspace")]
+
+    @app.post("/api/workspaces", status_code=201, dependencies=[Depends(require_auth)])
+    def create_workspace(payload: WorkspaceRequest) -> dict[str, Any]:
+        return harness_service.create_workspace(**payload.model_dump()).to_dict()
+
+    @app.get("/api/sessions", dependencies=[Depends(require_auth)])
+    def list_sessions() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("chat_session")]
+
+    @app.post("/api/sessions", status_code=201, dependencies=[Depends(require_auth)])
+    def create_session(payload: SessionRequest) -> dict[str, Any]:
+        return harness_service.create_session(**payload.model_dump()).to_dict()
+
+    @app.get("/api/sessions/{session_id}", dependencies=[Depends(require_auth)])
+    def get_session(session_id: str) -> dict[str, Any]:
+        session = database.get("chat_session", session_id)
+        if not session: raise HTTPException(404, "Session not found")
+        return {**session.to_dict(), "messages": [x.to_dict() for x in harness_service.session_messages(session_id)]}
+
+    @app.post("/api/sessions/{session_id}/messages", dependencies=[Depends(require_auth)])
+    def send_session_message(session_id: str, payload: HarnessMessageRequest) -> dict[str, Any]:
+        try:
+            return harness_service.send_message(session_id, **payload.model_dump()).to_dict()
+        except KeyError as exc: raise HTTPException(404, "Session not found") from exc
+        except NoAIProviderAvailable as exc: raise HTTPException(503, str(exc)) from exc
+
+    @app.get("/api/agent-modes", dependencies=[Depends(require_auth)])
+    def agent_modes() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("agent_mode")]
+
+    @app.get("/api/tools", dependencies=[Depends(require_auth)])
+    def tools() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("tool_definition")]
+
+    @app.get("/api/artifacts", dependencies=[Depends(require_auth)])
+    def artifacts() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("artifact")]
+
+    @app.post("/api/messages/{message_id}/artifact", dependencies=[Depends(require_auth)])
+    def message_artifact(message_id: str) -> dict[str, Any]:
+        try: return harness_service.create_artifact(message_id).to_dict()
+        except KeyError as exc: raise HTTPException(404, "Assistant message not found") from exc
+
+    @app.post("/api/setup/detect", dependencies=[Depends(require_auth)])
+    def setup_detect() -> dict[str, Any]:
+        state = provider_router.status()
+        recommended = "opencode_free" if state["modes"]["opencode_free"]["available"] else "local" if state["modes"]["local"]["available"] else "byok" if state["modes"]["byok"]["available"] else "managed" if state["modes"]["managed"]["available"] else None
+        return {"capabilities": state["modes"], "recommended_path": recommended}
 
     @app.post("/api/ai/clarify", dependencies=[Depends(require_auth)])
     def clarify(payload: ClarifyRequest) -> dict[str, Any]:

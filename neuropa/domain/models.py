@@ -139,9 +139,70 @@ class Provider(Entity):
 
 
 @dataclass
+class Workspace(Entity):
+    name: str = "NeuroPA Workspace"
+    description: str = ""
+    active_session_id: str | None = None
+    settings: dict[str, Any] = field(default_factory=dict)
+    entity_type: ClassVar[str] = "workspace"
+
+
+@dataclass
+class ChatSession(Entity):
+    title: str = "Nueva sesión"
+    workspace_id: str | None = None
+    project_id: str | None = None
+    mode_id: str | None = None
+    provider_id: str | None = None
+    model: str = ""
+    status: str = "active"
+    summary: dict[str, Any] | str = field(default_factory=dict)
+    source_refs: list[str] = field(default_factory=list)
+    entity_type: ClassVar[str] = "chat_session"
+
+
+@dataclass
+class ChatMessage(Entity):
+    session_id: str = ""
+    role: str = "user"
+    content: str = ""
+    provider_used: str | None = None
+    model: str | None = None
+    mode_id: str | None = None
+    status: str = "completed"
+    process_summary: dict[str, Any] = field(default_factory=dict)
+    source_refs: list[str] = field(default_factory=list)
+    usage: dict[str, Any] = field(default_factory=dict)
+    entity_type: ClassVar[str] = "chat_message"
+
+
+@dataclass
+class AgentMode(Entity):
+    name: str = "Conversar"
+    slug: str = "clarity"
+    description: str = ""
+    system_prompt: str = ""
+    temperature: float = 0.5
+    enabled: bool = True
+    tool_ids: list[str] = field(default_factory=list)
+    entity_type: ClassVar[str] = "agent_mode"
+
+
+@dataclass
+class ToolDefinition(Entity):
+    name: str = ""
+    slug: str = ""
+    description: str = ""
+    permissions: dict[str, Any] = field(default_factory=dict)
+    enabled: bool = True
+    builtin: bool = True
+    entity_type: ClassVar[str] = "tool_definition"
+
+
+@dataclass
 class Preset(Entity):
     name: str = ""
     config: dict[str, Any] = field(default_factory=dict)
     entity_type: ClassVar[str] = "preset"
 
-ENTITY_TYPES = {c.entity_type: c for c in [InboxItem, Task, Reminder, Project, FocusSession, CalendarEvent, MemoryClaim, Artifact, Skill, Provider, Preset]}
+ENTITY_TYPES = {c.entity_type: c for c in [InboxItem, Task, Reminder, Project, FocusSession, CalendarEvent, MemoryClaim, Artifact, Skill, Provider, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Preset]}
