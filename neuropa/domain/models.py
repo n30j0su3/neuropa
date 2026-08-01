@@ -41,6 +41,9 @@ class Task(Entity):
     estimate_range: str = ""
     energy: str = "medium"
     project_id: str | None = None
+    priority: int = 0
+    due_at: str | None = None
+    focus_block: bool = False
     status: str = "open"
     created_from: str | None = None
     entity_type: ClassVar[str] = "task"
