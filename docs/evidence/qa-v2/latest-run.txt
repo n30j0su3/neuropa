@@ -1,0 +1,84 @@
+{
+  "desktop": {
+    "width": 1600,
+    "height": 1000,
+    "metrics": {
+      "viewport": 1600,
+      "scrollWidth": 1600,
+      "overflowX": false,
+      "composerWidth": 920,
+      "composerBottom": 982,
+      "targetMin": 34.234375,
+      "visibleNav": [
+        "workspace",
+        "executive",
+        "projects",
+        "research",
+        "memory",
+        "artifacts",
+        "skills",
+        "calendar",
+        "settings"
+      ]
+    },
+    "provider_cards": 4,
+    "palette_visible": true,
+    "js_errors": [],
+    "console_errors": [],
+    "bad_responses": [],
+    "passed": true
+  },
+  "tablet": {
+    "width": 768,
+    "height": 900,
+    "metrics": {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "overflowX": false,
+      "composerWidth": 630.5625,
+      "composerBottom": 882,
+      "targetMin": 36,
+      "visibleNav": [
+        "workspace",
+        "executive",
+        "projects",
+        "research",
+        "memory",
+        "artifacts",
+        "skills",
+        "calendar",
+        "settings"
+      ]
+    },
+    "provider_cards": 4,
+    "palette_visible": true,
+    "js_errors": [],
+    "console_errors": [],
+    "bad_responses": [],
+    "passed": true
+  },
+  "mobile": {
+    "width": 480,
+    "height": 860,
+    "metrics": {
+      "viewport": 480,
+      "scrollWidth": 480,
+      "overflowX": false,
+      "composerWidth": 456,
+      "composerBottom": 784,
+      "targetMin": 44,
+      "visibleNav": [
+        "workspace",
+        "executive",
+        "memory",
+        "settings"
+      ]
+    },
+    "provider_cards": 4,
+    "palette_visible": true,
+    "js_errors": [],
+    "console_errors": [],
+    "bad_responses": [],
+    "passed": true
+  }
+}

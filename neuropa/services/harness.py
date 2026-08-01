@@ -43,6 +43,9 @@ class HarnessService:
 
     def create_session(self, title: str = "Nueva sesión", workspace_id: str | None = None, project_id: str | None = None, mode_id: str | None = None, provider_id: str | None = None, model: str = "") -> ChatSession:
         workspace = self.db.get("workspace", workspace_id) if workspace_id else self.default_workspace()
+        if mode_id is None:
+            clarity = next((item for item in self.db.list("agent_mode") if item.slug == "clarity"), None)
+            mode_id = clarity.id if clarity else None
         return self.db.create(ChatSession(title=title, workspace_id=workspace.id if workspace else None, project_id=project_id, mode_id=mode_id, provider_id=provider_id, model=model))
 
     def session_messages(self, session_id: str) -> list[ChatMessage]:

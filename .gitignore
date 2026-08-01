@@ -38,6 +38,9 @@ dist/
 *.egg-info/
 .eggs/
 
+# Agent/editor caches
+.atl/
+
 # Editors and IDEs
 .idea/
 .vscode/

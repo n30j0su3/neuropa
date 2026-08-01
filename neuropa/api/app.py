@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import ipaddress
+import os
 import secrets
 import time
 from pathlib import Path
@@ -17,6 +19,18 @@ from neuropa.domain.today import TodayService
 from neuropa.memory import MemoryClaimService
 from neuropa.providers import NoAIProviderAvailable, ProviderRouter
 from neuropa.services import HarnessService
+
+
+def client_allowed_for_token(host: str | None, lan_cidr: str | None) -> bool:
+    """Allow token pairing only from loopback or an explicitly enabled LAN."""
+    if host in {"127.0.0.1", "::1", "testclient"}:
+        return True
+    if not host or not lan_cidr:
+        return False
+    try:
+        return ipaddress.ip_address(host) in ipaddress.ip_network(lan_cidr, strict=False)
+    except ValueError:
+        return False
 
 
 def token_path() -> Path:
@@ -113,10 +127,10 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
 
     @app.get("/api/token")
     def frontend_token(request: Request) -> dict[str, str]:
-        # TestClient identifies as testclient; production access remains loopback-only.
         host = request.client.host if request.client else None
-        if host not in {"127.0.0.1", "::1", "testclient"}:
-            raise HTTPException(status_code=403, detail="Token is only available from loopback")
+        lan_cidr = os.getenv("NEUROPA_LAN_CIDR")
+        if not client_allowed_for_token(host, lan_cidr):
+            raise HTTPException(status_code=403, detail="Token pairing is not enabled for this client")
         return {"token": get_token()}
 
     @app.get("/api/health")
