@@ -159,6 +159,8 @@ class ChatSession(Entity):
     status: str = "active"
     summary: dict[str, Any] | str = field(default_factory=dict)
     source_refs: list[str] = field(default_factory=list)
+    context_scope: str = "session"
+    context_claim_ids: list[str] = field(default_factory=list)
     entity_type: ClassVar[str] = "chat_session"
 
 

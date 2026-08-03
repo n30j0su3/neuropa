@@ -7,7 +7,7 @@ import secrets
 import time
 from dataclasses import fields
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
@@ -137,6 +137,8 @@ class HarnessMessageRequest(BaseModel):
     provider: str | None = None
     model: str = ""
     privacy_sensitive: bool = False
+    context_scope: Literal["none", "session", "session_memory"] = "session"
+    memory_claim_ids: list[str] | None = None
 
 
 class WorkspaceRequest(BaseModel):

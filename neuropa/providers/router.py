@@ -43,6 +43,13 @@ class ProviderRouter:
         if mode == "local": return self.local.health()
         return bool((self.managed_key and self.managed_provider) if mode == "managed" else self.byok_key)
 
+    def _validate_model(self, mode: str, model: str) -> None:
+        if not model:
+            return
+        catalog = self.opencode.list_models() if mode == "opencode_free" else self.local.list_models() if mode == "local" else ["gpt-4o-mini"] if (mode == "byok" and self.byok_key) or (mode == "managed" and self.managed_key and self.managed_provider) else []
+        if catalog and model not in catalog:
+            raise ValueError("model no está disponible en el catálogo del provider")
+
     def generate(self, messages: list[dict[str, str]], mode: str | None = None, privacy_sensitive: bool = False, model: str = "", workspace: str | None = None) -> dict[str, Any]:
         if privacy_sensitive:
             modes = ["local"]
@@ -58,6 +65,7 @@ class ProviderRouter:
             if selected not in {"opencode_free", "local", "byok", "managed"} or not self._available(selected):
                 continue
             try:
+                self._validate_model(selected, model)
                 raw = self._call(selected, messages, model, workspace) if workspace is not None else self._call(selected, messages, model)
                 usage = raw.get("usage", {})
                 return {"text": raw.get("text", raw.get("content", "")), "provider_used": raw.get("provider_used", selected), "model": raw.get("model", model), "session_id": raw.get("session_id"), "usage": usage, "tokens_in": usage.get("input", usage.get("prompt_tokens", 0)), "tokens_out": usage.get("output", usage.get("completion_tokens", 0))}
@@ -66,15 +74,43 @@ class ProviderRouter:
         raise NoAIProviderAvailable("No hay un provider de IA disponible para esta solicitud") from last_error
 
     def status(self) -> dict[str, Any]:
-        op_models = self.opencode.list_models() if self.opencode.health() else []
-        local_models = self.local.list_models() if self.local.health() else []
+        op_available = self.opencode.health()
+        local_available = self.local.health()
+        op_models = self.opencode.list_models() if op_available else []
+        local_models = self.local.list_models() if local_available else []
         modes = {
-            "opencode_free": {"available": self.opencode.health(), "healthy": self.opencode.health(), "models": op_models, "privacy_label": "remote/free", "cost_label": "free", "model": DEFAULT_MODEL},
-            "local": {"available": self.local.health(), "healthy": self.local.health(), "models": local_models, "privacy_label": "local", "cost_label": "free"},
-            "byok": {"available": bool(self.byok_key), "healthy": bool(self.byok_key), "models": ["gpt-4o-mini"] if self.byok_key else [], "privacy_label": "remote/byok", "cost_label": "variable"},
-            "managed": {"available": bool(self.managed_key and self.managed_provider), "healthy": bool(self.managed_key and self.managed_provider), "models": ["gpt-4o-mini"] if self.managed_key else [], "privacy_label": "remote/managed", "cost_label": "variable"},
+            "opencode_free": {
+                "available": op_available, "healthy": op_available,
+                "description": "OpenCode CLI con modelos gratuitos",
+                "privacy": "remote/free", "privacy_label": "remote/free",
+                "cost": "free", "cost_label": "free", "models": op_models,
+                "recommended_model": DEFAULT_MODEL if DEFAULT_MODEL in op_models else None,
+                "model": DEFAULT_MODEL,
+            },
+            "local": {
+                "available": local_available, "healthy": local_available,
+                "description": "Modelos locales vía Ollama",
+                "privacy": "local", "privacy_label": "local", "cost": "free", "cost_label": "free",
+                "models": local_models,
+                "recommended_model": local_models[0] if local_models else None,
+            },
+            "byok": {
+                "available": bool(self.byok_key), "healthy": bool(self.byok_key),
+                "description": "Proveedor cloud con clave propia",
+                "privacy": "remote/byok", "privacy_label": "remote/byok", "cost": "variable", "cost_label": "variable",
+                "models": ["gpt-4o-mini"] if self.byok_key else [],
+                "recommended_model": "gpt-4o-mini" if self.byok_key else None,
+            },
+            "managed": {
+                "available": bool(self.managed_key and self.managed_provider),
+                "healthy": bool(self.managed_key and self.managed_provider),
+                "description": "Proveedor cloud gestionado",
+                "privacy": "remote/managed", "privacy_label": "remote/managed", "cost": "variable", "cost_label": "variable",
+                "models": ["gpt-4o-mini"] if self.managed_key and self.managed_provider else [],
+                "recommended_model": "gpt-4o-mini" if self.managed_key and self.managed_provider else None,
+            },
         }
-        return {"modes": modes, "fallback_chain": ["opencode_free", "local", "byok", "managed"]}
+        return {"modes": modes, "providers": modes, "fallback_chain": ["opencode_free", "local", "byok", "managed"]}
 
     def clarify(self, raw_text: str, mode: str | None = None, privacy_sensitive: bool = False) -> dict[str, Any]:
         system = "Convierte un pensamiento abrumador en UNA siguiente acción pequeña. Responde JSON con next_action, steps (máximo 3), estimate_range. No expongas razonamiento privado."

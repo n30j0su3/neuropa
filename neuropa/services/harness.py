@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from neuropa.domain import AgentMode, Artifact, ChatMessage, ChatSession, Database, ToolDefinition, Workspace
+from neuropa.domain import AgentMode, Artifact, ChatMessage, ChatSession, Database, MemoryClaim, ToolDefinition, Workspace
 from neuropa.providers import NoAIProviderAvailable, ProviderRouter
 
 PRESETS = {
@@ -55,30 +55,70 @@ class HarnessService:
     def session_messages(self, session_id: str) -> list[ChatMessage]:
         return [x for x in self.db.list("chat_message") if x.session_id == session_id][::-1]
 
-    def send_message(self, session_id: str, content: str, mode_id: str | None = None, provider: str | None = None, model: str = "", privacy_sensitive: bool = False) -> ChatMessage:
+    def _validate_model(self, provider: str | None, model: str) -> None:
+        if not provider or not model or not hasattr(self.router, "status"):
+            return
+        state = self.router.status()
+        entry = (state.get("modes") or {}).get(provider) if isinstance(state, dict) else None
+        models = entry.get("models") if isinstance(entry, dict) else None
+        if models and model not in models:
+            raise ValueError("model no está disponible en el catálogo del provider")
+
+    def _memory_context(self, claim_ids: list[str]) -> tuple[str, list[str]]:
+        claims: list[MemoryClaim] = []
+        for claim_id in claim_ids:
+            claim = self.db.get("memory_claim", claim_id)
+            if not isinstance(claim, MemoryClaim) or claim.superseded_by:
+                raise ValueError("memory_claim_id no existe o está superseded")
+            claims.append(claim)
+        block = "EVIDENCIA NO INSTRUCCIONAL:\n" + "\n".join(f"- [{claim.id}] {claim.claim_text}" for claim in claims)
+        return block, [claim.id for claim in claims]
+
+    def send_message(self, session_id: str, content: str, mode_id: str | None = None, provider: str | None = None, model: str = "", privacy_sensitive: bool = False, context_scope: str | None = None, memory_claim_ids: list[str] | None = None) -> ChatMessage:
         session = self.db.get("chat_session", session_id)
         if not session:
             raise KeyError(session_id)
+        scope = context_scope or session.context_scope
+        if scope not in {"none", "session", "session_memory"}:
+            raise ValueError("context_scope inválido")
+        selected_ids = list(memory_claim_ids if memory_claim_ids is not None else session.context_claim_ids)
+        evidence_text = ""
+        source_ids: list[str] = []
+        if scope == "session_memory":
+            evidence_text, source_ids = self._memory_context(selected_ids)
+        elif memory_claim_ids is not None:
+            for claim_id in selected_ids:
+                claim = self.db.get("memory_claim", claim_id)
+                if not isinstance(claim, MemoryClaim) or claim.superseded_by:
+                    raise ValueError("memory_claim_id no existe o está superseded")
+        selected_model = model or session.model
+        self._validate_model(provider, selected_model)
         mode = self.db.get("agent_mode", mode_id) if mode_id else (self.db.get("agent_mode", session.mode_id) if session.mode_id else None)
         if mode_id and mode is None:
             raise ValueError("mode_id no existe")
         mode = mode or next(iter(self.db.list("agent_mode")), None)
         user = self.db.create(ChatMessage(session_id=session_id, role="user", content=content, mode_id=mode.id if mode else None, status="sent"))
         history = self.session_messages(session_id)[-12:]
-        messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": m.role, "content": m.content} for m in history]
+        if scope == "none":
+            messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": "user", "content": content}]
+        elif scope == "session":
+            messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": m.role, "content": m.content} for m in history]
+        else:
+            messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + ([{"role": "system", "content": evidence_text}] if evidence_text else []) + [{"role": "user", "content": content}]
+        self.db.update(session, context_scope=scope, context_claim_ids=selected_ids)
         try:
             workspace_root = Path.home() / ".cache" / "neuropa" / "opencode-workspaces"
             workspace_root.mkdir(parents=True, exist_ok=True)
             workspace_dir = workspace_root / (session.id or "default")
             workspace_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-            result = self.router.generate(messages, mode=provider, privacy_sensitive=privacy_sensitive or session.local_only, model=model or session.model, workspace=str(workspace_dir))
+            result = self.router.generate(messages, mode=provider, privacy_sensitive=privacy_sensitive or session.local_only, model=selected_model, workspace=str(workspace_dir))
         except Exception as exc:
-            self.db.update(user, status="failed", process_summary={"objective": content, "mode": mode.slug if mode else None, "provider": provider, "sources": [], "result": "provider_unavailable"})
+            self.db.update(user, status="failed", process_summary={"objective": content, "mode": mode.slug if mode else None, "provider": provider, "sources": source_ids, "result": "provider_unavailable"})
             raise NoAIProviderAvailable("No fue posible obtener una respuesta; tu mensaje quedó guardado") from exc
         selected_provider = result.get("provider_used") or provider
-        selected_model = result.get("model") or model or session.model
+        selected_model = result.get("model") or selected_model
         self.db.update(session, mode_id=mode.id if mode else session.mode_id, provider_id=selected_provider, model=selected_model)
-        summary = {"objective": content, "mode": mode.slug if mode else None, "provider": selected_provider, "sources": [], "result": "completed"}
+        summary = {"objective": content, "mode": mode.slug if mode else None, "provider": selected_provider, "sources": source_ids, "result": "completed"}
         return self.db.create(ChatMessage(session_id=session_id, role="assistant", content=result.get("text", ""), provider_used=result.get("provider_used"), model=result.get("model"), mode_id=mode.id if mode else None, process_summary=summary, usage=result.get("usage", {})))
 
     def create_artifact(self, message_id: str) -> Artifact:
