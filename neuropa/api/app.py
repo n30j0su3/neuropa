@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from neuropa.domain import Database, InboxItem, Task, FocusSession, MemoryClaim, ENTITY_TYPES, default_data_dir, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Artifact
 from neuropa.domain.today import TodayService
 from neuropa.memory import MemoryClaimService
+from neuropa.memory.graph import build_memory_graph
 from neuropa.providers import NoAIProviderAvailable, ProviderRouter
 from neuropa.services import HarnessService
 
@@ -129,6 +130,13 @@ class MemoryStoreRequest(BaseModel):
 
 class MemoryQueryRequest(BaseModel):
     query: str = Field(min_length=1)
+
+
+class MemorySupersedeRequest(BaseModel):
+    claim_text: str = Field(min_length=1)
+    source_type: str = "note"
+    source_ref: str = ""
+    confidence: float = 0.5
 
 
 class HarnessMessageRequest(BaseModel):
@@ -318,6 +326,24 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     @app.post("/api/memory/query", dependencies=[Depends(require_auth)])
     def memory_query(payload: MemoryQueryRequest) -> dict[str, Any]:
         return memory.answer_with_evidence(payload.query)
+
+    @app.get("/api/memory/graph", dependencies=[Depends(require_auth)])
+    def memory_graph(
+        query: str | None = Query(default=None),
+        source: str | None = Query(default=None),
+        status_filter: str | None = Query(default=None, alias="status"),
+        confidence: float | None = Query(default=None, ge=0, le=1),
+    ) -> dict[str, Any]:
+        return build_memory_graph(database, {"query": query, "source": source, "status": status_filter, "confidence": confidence})
+
+    @app.post("/api/memory/claims/{claim_id}/supersede", status_code=201, dependencies=[Depends(require_auth)])
+    def memory_supersede(claim_id: str, payload: MemorySupersedeRequest) -> dict[str, Any]:
+        try:
+            return memory.supersede_claim(claim_id, **payload.model_dump()).to_dict()
+        except KeyError as exc:
+            raise HTTPException(404, "Memory claim not found") from exc
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @app.get("/api/today", dependencies=[Depends(require_auth)])
     def get_today() -> dict[str, Any]:
