@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -33,6 +34,7 @@ class Database:
         self.path = Path(path) if path else default_data_dir() / "neuropa.db"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._supersede_lock = threading.RLock()
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
@@ -114,9 +116,48 @@ class Database:
         return cur.rowcount > 0
 
     def supersede(self, old_id: str, new_claim: MemoryClaim) -> MemoryClaim:
-        self.create(new_claim)
-        self.update(self.get("memory_claim", old_id), superseded_by=new_claim.id)  # type: ignore[arg-type]
-        return new_claim
+        with self._supersede_lock:
+            return self._supersede_locked(old_id, new_claim)
+
+    def _supersede_locked(self, old_id: str, new_claim: MemoryClaim) -> MemoryClaim:
+        try:
+            # Serialize the read/insert/conditional-write sequence so a concurrent
+            # supersession cannot leave an orphaned replacement claim.
+            self.conn.execute("BEGIN IMMEDIATE")
+            old = self.get("memory_claim", old_id)
+            if old is None:
+                raise KeyError(old_id)
+            if not isinstance(old, MemoryClaim):
+                raise KeyError(old_id)
+            if old.superseded_by:
+                raise ValueError("claim is already superseded")
+
+            self.create(new_claim, commit=False)
+            data = old.to_dict()
+            data["superseded_by"] = new_claim.id
+            data["updated_at"] = now_iso()
+            data.pop("entity_type", None)
+            updated = type(old)(**data)
+            cur = self.conn.execute(
+                """UPDATE entities
+                   SET payload=?, updated_at=?, deleted_at=?
+                 WHERE entity_type=? AND id=? AND deleted_at IS NULL
+                   AND json_extract(payload, '$.superseded_by') IS NULL""",
+                (
+                    json.dumps(updated.to_dict()),
+                    updated.updated_at,
+                    updated.deleted_at,
+                    "memory_claim",
+                    old_id,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise ValueError("claim is already superseded")
+            self.conn.commit()
+            return new_claim
+        except Exception:
+            self.conn.rollback()
+            raise
 
     @staticmethod
     def _decode(payload: str) -> Entity:

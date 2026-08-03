@@ -3,8 +3,6 @@ from __future__ import annotations
 import hashlib
 import re
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
-
 from neuropa.domain import ChatMessage, Database, MemoryClaim
 
 
@@ -12,27 +10,27 @@ def _safe_source_type(value: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "-", (value or "unknown").strip().lower()).strip("-") or "unknown"
 
 
-def _safe_source_ref(value: str) -> str:
-    """Return a display-safe ref; credentials/query strings never enter the graph."""
-    value = (value or "").strip()
+def _display_ref(source_type: str, source_ref: str) -> str:
+    """Return an opaque, deterministic display ref without exposing source data."""
+    value = (source_ref or "").strip()
     if not value:
         return ""
-    parsed = urlsplit(value)
-    if parsed.scheme and parsed.netloc:
-        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
-    return re.sub(r"(?i)(token|secret|password|api[_-]?key)=([^&\s]+)", r"\1=[redacted]", value)
+    safe_type = _safe_source_type(source_type)
+    digest = hashlib.sha256(f"{safe_type}\0{value}".encode("utf-8")).hexdigest()[:24]
+    return f"ref:{safe_type}:{digest}"
 
 
 def normalize_source_node(source_type: str, source_ref: str) -> dict[str, Any]:
     safe_type = _safe_source_type(source_type)
-    canonical_ref = _safe_source_ref(source_ref)
-    digest = hashlib.sha256(f"{safe_type}\0{canonical_ref}".encode("utf-8")).hexdigest()[:24]
+    display_ref = _display_ref(safe_type, source_ref)
+    digest = display_ref.rsplit(":", 1)[-1] if display_ref else "empty"
     return {
         "id": f"source:{safe_type}:{digest}",
         "type": "source",
         "source_type": safe_type,
-        "source_ref": canonical_ref,
-        "label": canonical_ref or safe_type,
+        "source_ref": display_ref,
+        "display_ref": display_ref,
+        "label": display_ref or safe_type,
     }
 
 
@@ -83,7 +81,8 @@ def build_memory_graph(db: Database, filters: dict[str, Any] | None = None) -> d
             "confidence": claim.confidence,
             "claim_text": claim.claim_text,
             "source_type": claim.source_type,
-            "source_ref": _safe_source_ref(claim.source_ref),
+            "source_ref": _display_ref(claim.source_type, claim.source_ref),
+            "display_ref": _display_ref(claim.source_type, claim.source_ref),
             "created_at": claim.created_at,
         }
         nodes.append(node)

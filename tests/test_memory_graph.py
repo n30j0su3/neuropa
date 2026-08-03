@@ -17,6 +17,31 @@ def test_source_node_is_deterministic_and_does_not_embed_raw_ref():
     assert "abc123" not in first["id"]
 
 
+@pytest.mark.parametrize(
+    "source_ref",
+    [
+        "https://user:pass@example.test/private?api_key=secret#fragment",
+        "Bearer super-secret-token",
+        "https://example.test/api_key/secret-value",
+        "/home/alice/private/credentials.json",
+    ],
+)
+def test_graph_exposes_only_opaque_display_refs(source_ref: str, tmp_path: Path):
+    db = Database(tmp_path / "memory.db")
+    claim = db.create(MemoryClaim(claim_text="private", source_type="note", source_ref=source_ref, confidence=.8))
+
+    graph = build_memory_graph(db)
+    visible = repr(graph)
+
+    assert source_ref not in visible
+    assert "user:pass" not in visible
+    assert "super-secret-token" not in visible
+    assert "/home/" not in visible
+    claim_node = next(node for node in graph["nodes"] if node["id"] == f"claim:{claim.id}")
+    assert claim_node["display_ref"].startswith("ref:")
+    assert claim_node["display_ref"] == claim_node["source_ref"]
+
+
 def test_graph_projects_only_explicit_provenance_and_supersession(tmp_path: Path):
     db = Database(tmp_path / "memory.db")
     source_claim = db.create(MemoryClaim(claim_text="Uses SQLite", source_type="note", source_ref="notes/db", confidence=.8))

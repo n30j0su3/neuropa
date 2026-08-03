@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -48,6 +49,49 @@ def test_memory_claim_supersede(db: Database):
     new = db.supersede(old.id, MemoryClaim(claim_text="new", source_type="user", source_ref="b", confidence=.9))
     assert db.get("memory_claim", old.id).superseded_by == new.id
     assert db.get("memory_claim", new.id).claim_text == "new"
+
+
+def test_memory_claim_supersede_rolls_back_new_claim_when_old_was_raced(db: Database):
+    old = db.create(MemoryClaim(claim_text="old", source_type="note", source_ref="a", confidence=.5))
+    winner = db.create(MemoryClaim(claim_text="winner", source_type="user", source_ref="b", confidence=.9))
+    db.update(db.get("memory_claim", old.id), superseded_by=winner.id)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="already superseded"):
+        db.supersede(old.id, MemoryClaim(claim_text="loser", source_type="user", source_ref="c", confidence=.9))
+
+    assert [claim.claim_text for claim in db.list("memory_claim")] == ["winner", "old"]
+
+
+def test_memory_claim_supersede_allows_one_winner_under_concurrency(tmp_path: Path):
+    path = tmp_path / "concurrent.db"
+    setup = Database(path)
+    old = setup.create(MemoryClaim(claim_text="old", source_type="note", source_ref="a", confidence=.5))
+    setup.close()
+
+    def attempt(text: str):
+        database = Database(path)
+        try:
+            return database.supersede(old.id, MemoryClaim(claim_text=text, source_type="user", source_ref=text, confidence=.9)).claim_text
+        finally:
+            database.close()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(attempt, "first"), pool.submit(attempt, "second")]
+        outcomes = []
+        for future in futures:
+            try:
+                outcomes.append(("ok", future.result()))
+            except ValueError as exc:
+                outcomes.append(("rejected", str(exc)))
+
+    assert sorted(status for status, _ in outcomes) == ["ok", "rejected"]
+    final = Database(path)
+    try:
+        claims = final.list("memory_claim")
+        assert len(claims) == 2
+        assert sum(claim.claim_text in {"first", "second"} for claim in claims) == 1
+    finally:
+        final.close()
 
 
 def test_migration_from_zero_is_idempotent(tmp_path: Path):
