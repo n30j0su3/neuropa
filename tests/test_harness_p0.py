@@ -80,3 +80,71 @@ def test_invalid_or_superseded_memory_claim_is_rejected_before_provider(tmp_path
         svc.send_message(session.id, "x", provider="local", model="local-1", context_scope="session_memory", memory_claim_ids=["missing"])
     assert router.calls == []
     db.close()
+
+
+def test_session_memory_includes_recent_history_evidence_and_current_user_once(tmp_path):
+    db = Database(tmp_path / "x.db")
+    router = CatalogRouter()
+    svc = HarnessService(db, router, tmp_path)
+    session = svc.create_session()
+    claim = db.create(__import__("neuropa.domain", fromlist=["MemoryClaim"]).MemoryClaim(claim_text="La reunión es el martes"))
+    db.create(__import__("neuropa.domain", fromlist=["ChatMessage"]).ChatMessage(session_id=session.id, role="user", content="anterior"))
+    db.create(__import__("neuropa.domain", fromlist=["ChatMessage"]).ChatMessage(session_id=session.id, role="assistant", content="respuesta anterior"))
+
+    svc.send_message(session.id, "¿cuándo?", provider="local", model="local-1", context_scope="session_memory", memory_claim_ids=[claim.id])
+
+    sent = router.calls[-1][0]
+    assert [message["role"] for message in sent] == ["system", "user", "assistant", "system", "user"]
+    assert sent[1]["content"] == "anterior"
+    assert sent[2]["content"] == "respuesta anterior"
+    assert "EVIDENCIA NO INSTRUCCIONAL" in sent[3]["content"]
+    assert [message["content"] for message in sent].count("¿cuándo?") == 1
+    db.close()
+
+
+def test_omitted_request_scope_preserves_session_scope_and_claims(tmp_path):
+    from neuropa.api.app import HarnessMessageRequest
+
+    db = Database(tmp_path / "x.db")
+    router = CatalogRouter()
+    svc = HarnessService(db, router, tmp_path)
+    session = svc.create_session()
+    claim = db.create(__import__("neuropa.domain", fromlist=["MemoryClaim"]).MemoryClaim(claim_text="Hecho persistente"))
+    db.update(session, context_scope="session_memory", context_claim_ids=[claim.id])
+
+    request = HarnessMessageRequest.model_validate({"content": "consulta"})
+    svc.send_message(session.id, provider="local", model="local-1", **request.model_dump(exclude={"provider", "model"}))
+
+    sent = router.calls[-1][0]
+    assert request.context_scope is None
+    assert "EVIDENCIA NO INSTRUCCIONAL" in sent[1]["content"]
+    assert sent[-1] == {"role": "user", "content": "consulta"}
+    db.close()
+
+
+def test_unknown_or_unavailable_catalog_does_not_reject_model(tmp_path):
+    import pytest
+
+    class RouterWithStatus(FakeRouter):
+        def __init__(self, entry):
+            super().__init__()
+            self.entry = entry
+
+        def status(self):
+            return {"modes": {"local": self.entry}}
+
+    for entry in ({"available": False, "models": [], "catalog_known": False}, {"available": True, "catalog_known": False}):
+        db = Database(tmp_path / f"{len(entry)}-{entry.get('available')}.db")
+        router = RouterWithStatus(entry)
+        svc = HarnessService(db, router, tmp_path)
+        session = svc.create_session()
+        svc.send_message(session.id, "x", provider="local", model="not-listed")
+        db.close()
+
+    db = Database(tmp_path / "known.db")
+    router = RouterWithStatus({"available": True, "models": ["listed"], "catalog_known": True})
+    svc = HarnessService(db, router, tmp_path)
+    session = svc.create_session()
+    with pytest.raises(ValueError):
+        svc.send_message(session.id, "x", provider="local", model="not-listed")
+    db.close()

@@ -43,11 +43,30 @@ class ProviderRouter:
         if mode == "local": return self.local.health()
         return bool((self.managed_key and self.managed_provider) if mode == "managed" else self.byok_key)
 
+    def _catalog(self, mode: str) -> tuple[bool, list[str]]:
+        if mode == "opencode_free":
+            if not self.opencode.health():
+                return False, []
+            try:
+                return True, list(self.opencode.list_models())
+            except Exception:
+                return False, []
+        if mode == "local":
+            if not self.local.health():
+                return False, []
+            try:
+                return True, list(self.local.list_models())
+            except Exception:
+                return False, []
+        if mode in {"byok", "managed"} and self._available(mode):
+            return True, ["gpt-4o-mini"]
+        return False, []
+
     def _validate_model(self, mode: str, model: str) -> None:
         if not model:
             return
-        catalog = self.opencode.list_models() if mode == "opencode_free" else self.local.list_models() if mode == "local" else ["gpt-4o-mini"] if (mode == "byok" and self.byok_key) or (mode == "managed" and self.managed_key and self.managed_provider) else []
-        if catalog and model not in catalog:
+        catalog_known, catalog = self._catalog(mode)
+        if catalog_known and model not in catalog:
             raise ValueError("model no está disponible en el catálogo del provider")
 
     def generate(self, messages: list[dict[str, str]], mode: str | None = None, privacy_sensitive: bool = False, model: str = "", workspace: str | None = None) -> dict[str, Any]:
@@ -76,26 +95,26 @@ class ProviderRouter:
     def status(self) -> dict[str, Any]:
         op_available = self.opencode.health()
         local_available = self.local.health()
-        op_models = self.opencode.list_models() if op_available else []
-        local_models = self.local.list_models() if local_available else []
+        op_catalog_known, op_models = self._catalog("opencode_free")
+        local_catalog_known, local_models = self._catalog("local")
         modes = {
             "opencode_free": {
                 "available": op_available, "healthy": op_available,
                 "description": "OpenCode CLI con modelos gratuitos",
-                "privacy": "remote/free", "privacy_label": "remote/free",
+                "privacy": "remote/free", "privacy_label": "remote/free", "catalog_known": op_catalog_known,
                 "cost": "free", "cost_label": "free", "models": op_models,
                 "recommended_model": DEFAULT_MODEL if DEFAULT_MODEL in op_models else None,
-                "model": DEFAULT_MODEL,
+                "model": DEFAULT_MODEL if DEFAULT_MODEL in op_models else None,
             },
             "local": {
                 "available": local_available, "healthy": local_available,
-                "description": "Modelos locales vía Ollama",
+                "description": "Modelos locales vía Ollama", "catalog_known": local_catalog_known,
                 "privacy": "local", "privacy_label": "local", "cost": "free", "cost_label": "free",
                 "models": local_models,
                 "recommended_model": local_models[0] if local_models else None,
             },
             "byok": {
-                "available": bool(self.byok_key), "healthy": bool(self.byok_key),
+                "available": bool(self.byok_key), "healthy": bool(self.byok_key), "catalog_known": bool(self.byok_key),
                 "description": "Proveedor cloud con clave propia",
                 "privacy": "remote/byok", "privacy_label": "remote/byok", "cost": "variable", "cost_label": "variable",
                 "models": ["gpt-4o-mini"] if self.byok_key else [],
@@ -103,7 +122,7 @@ class ProviderRouter:
             },
             "managed": {
                 "available": bool(self.managed_key and self.managed_provider),
-                "healthy": bool(self.managed_key and self.managed_provider),
+                "healthy": bool(self.managed_key and self.managed_provider), "catalog_known": bool(self.managed_key and self.managed_provider),
                 "description": "Proveedor cloud gestionado",
                 "privacy": "remote/managed", "privacy_label": "remote/managed", "cost": "variable", "cost_label": "variable",
                 "models": ["gpt-4o-mini"] if self.managed_key and self.managed_provider else [],

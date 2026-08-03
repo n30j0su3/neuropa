@@ -61,7 +61,7 @@ class HarnessService:
         state = self.router.status()
         entry = (state.get("modes") or {}).get(provider) if isinstance(state, dict) else None
         models = entry.get("models") if isinstance(entry, dict) else None
-        if models and model not in models:
+        if isinstance(entry, dict) and entry.get("catalog_known") is True and model not in (models or []):
             raise ValueError("model no está disponible en el catálogo del provider")
 
     def _memory_context(self, claim_ids: list[str]) -> tuple[str, list[str]]:
@@ -78,7 +78,7 @@ class HarnessService:
         session = self.db.get("chat_session", session_id)
         if not session:
             raise KeyError(session_id)
-        scope = context_scope or session.context_scope
+        scope = session.context_scope if context_scope is None else context_scope
         if scope not in {"none", "session", "session_memory"}:
             raise ValueError("context_scope inválido")
         selected_ids = list(memory_claim_ids if memory_claim_ids is not None else session.context_claim_ids)
@@ -98,13 +98,13 @@ class HarnessService:
             raise ValueError("mode_id no existe")
         mode = mode or next(iter(self.db.list("agent_mode")), None)
         user = self.db.create(ChatMessage(session_id=session_id, role="user", content=content, mode_id=mode.id if mode else None, status="sent"))
-        history = self.session_messages(session_id)[-12:]
+        history = [message for message in self.session_messages(session_id) if message.id != user.id][-12:]
         if scope == "none":
             messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": "user", "content": content}]
         elif scope == "session":
             messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": m.role, "content": m.content} for m in history]
         else:
-            messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + ([{"role": "system", "content": evidence_text}] if evidence_text else []) + [{"role": "user", "content": content}]
+            messages = ([{"role": "system", "content": mode.system_prompt}] if mode else []) + [{"role": m.role, "content": m.content} for m in history] + ([{"role": "system", "content": evidence_text}] if evidence_text else []) + [{"role": "user", "content": content}]
         self.db.update(session, context_scope=scope, context_claim_ids=selected_ids)
         try:
             workspace_root = Path.home() / ".cache" / "neuropa" / "opencode-workspaces"

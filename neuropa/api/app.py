@@ -137,7 +137,7 @@ class HarnessMessageRequest(BaseModel):
     provider: str | None = None
     model: str = ""
     privacy_sensitive: bool = False
-    context_scope: Literal["none", "session", "session_memory"] = "session"
+    context_scope: Literal["none", "session", "session_memory"] | None = None
     memory_claim_ids: list[str] | None = None
 
 

@@ -40,3 +40,17 @@ def test_provider_status_has_catalog_contract_and_safe_recommendation():
     assert state["providers"]["opencode_free"]["models"] == ["other-free"]
     assert state["providers"]["opencode_free"]["recommended_model"] is None
     assert state["providers"]["local"]["models"] == []
+
+
+def test_legacy_status_model_never_returns_model_absent_from_catalog():
+    class OpenCode:
+        def health(self): return True
+        def list_models(self): return ["other-free"]
+    class Local:
+        def health(self): return False
+        def list_models(self): return ["unused-local"]
+
+    state = ProviderRouter(ollama=Local(), opencode=OpenCode()).status()
+    assert state["providers"]["opencode_free"]["model"] is None
+    assert state["providers"]["opencode_free"]["catalog_known"] is True
+    assert state["providers"]["local"]["catalog_known"] is False
