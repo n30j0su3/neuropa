@@ -1,9 +1,10 @@
 {
   "project": "NeuroPA",
   "closure_date": "2026-08-03",
-  "status": "READY_TO_PUBLISH",
+  "status": "CLOSED",
   "branch": "main",
   "base_head_before_closure": "170762e",
+  "closure_commit_published": "66c91c3e293fb4feebc3ca7a8d0835a8308558b",
   "remote": "https://github.com/n30j0su3/neuropa.git",
   "gates": {
     "pytest": "43 passed",
