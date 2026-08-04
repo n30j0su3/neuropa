@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from neuropa.domain import Database, MemoryClaim
+from .graph import build_memory_graph, claim_status, normalize_source_node
 
 
 class MemoryClaimService:
@@ -23,7 +24,18 @@ class MemoryClaimService:
         new = self.db.get("memory_claim", new_claim_id)
         if not old or not new:
             raise KeyError(old_id if not old else new_claim_id)
+        if getattr(old, "superseded_by", None):
+            raise ValueError("claim is already superseded")
         return self.db.update(old, superseded_by=new_claim_id)  # type: ignore[arg-type]
+
+    def supersede_claim(self, old_id: str, *, claim_text: str, source_type: str = "note", source_ref: str = "", confidence: float = 0.5) -> MemoryClaim:
+        old = self.db.get("memory_claim", old_id)
+        if not old:
+            raise KeyError(old_id)
+        if getattr(old, "superseded_by", None):
+            raise ValueError("claim is already superseded")
+        new = MemoryClaim(claim_text=claim_text, source_type=source_type, source_ref=source_ref, confidence=max(0.0, min(1.0, confidence)))
+        return self.db.supersede(old_id, new)
 
     def answer_with_evidence(self, query: str) -> dict[str, Any]:
         found = self.search_claims(query, limit=1)
