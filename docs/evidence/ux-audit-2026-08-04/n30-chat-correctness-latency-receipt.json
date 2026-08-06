@@ -1,0 +1,74 @@
+{
+  "schema": "neuropa/n30-chat-correctness-latency-receipt/v1",
+  "generated_at": "2026-08-04T21:33:42-05:00",
+  "trigger_message_id": "1534385751163408537",
+  "runtime": {
+    "url": "http://192.168.1.21:8474/",
+    "health": "ok",
+    "recommended_free_model": "opencode/laguna-s-2.1-free"
+  },
+  "observed_incident": {
+    "session_id": "99f10f86-0a99-4967-97f6-166bc43406ba",
+    "current_user_message": "Una rtx 5070 ti 12gb mobile con 16gb ram en laptop sirve para IA local?",
+    "incorrect_assistant_topic": "La respuesta continuó hablando de Skills y MCP, que correspondía al turno anterior.",
+    "new_session_symptom": "Con historial vacío, el modelo recibió sólo el prompt del modo Claridad y devolvió una invitación genérica en vez de contestar la pregunta.",
+    "failed_message_present_in_history": true
+  },
+  "root_causes": [
+    {
+      "file": "neuropa/services/harness.py",
+      "symbol": "HarnessService.send_message",
+      "cause": "La rama context_scope=session construía system + history pero omitía el mensaje actual del usuario. En una sesión existente terminaba en la respuesta anterior; en una sesión nueva enviaba sólo el system prompt."
+    },
+    {
+      "file": "neuropa/services/harness.py",
+      "symbol": "HarnessService.send_message.history",
+      "cause": "Mensajes de usuario con status=failed se reinyectaban en el contexto y podían duplicar solicitudes fallidas."
+    },
+    {
+      "file": "neuropa/providers/opencode_cli.py",
+      "symbol": "DEFAULT_MODEL",
+      "cause": "DeepSeek V4 Flash fue el modelo gratuito recomendado, pero superó 20 s en la prueba controlada equivalente."
+    }
+  ],
+  "fixes": [
+    "El mensaje actual se añade una sola vez y siempre queda como último mensaje user en contextos none, session y session_memory.",
+    "Los mensajes status=failed quedan excluidos del historial enviado al proveedor.",
+    "El contrato de respuesta obliga a contestar primero la solicitud literal; el modo sólo modifica enfoque o formato.",
+    "Las respuestas se mantienen concisas por defecto.",
+    "Laguna S 2.1 pasa a ser el modelo gratuito recomendado por defecto; los modelos elegidos manualmente se respetan."
+  ],
+  "controlled_live_benchmark": {
+    "prompt": "Una RTX 5070 Ti 12GB Mobile con 16GB RAM en laptop, ¿sirve para IA local?",
+    "mode": "clarity",
+    "context_scope": "session",
+    "results": [
+      {
+        "model": "opencode/laguna-s-2.1-free",
+        "wall_seconds": 15.882,
+        "provider_elapsed_seconds": 14.722,
+        "answered_current_question": true
+      },
+      {
+        "model": "opencode/deepseek-v4-flash-free",
+        "wall_seconds": 25.189,
+        "provider_elapsed_seconds": 25.119,
+        "answered_current_question": true
+      }
+    ],
+    "qa_sessions_hidden_after_test": true
+  },
+  "verification": {
+    "tdd_red": "3 correctness regressions and 1 default-model regression failed for the expected reasons before implementation.",
+    "targeted": "5 passed",
+    "full_suite": "132 passed, 1 pre-existing StarletteDeprecationWarning",
+    "compileall": "pass",
+    "git_diff_check": "pass"
+  },
+  "hashes": {
+    "neuropa/services/harness.py": "41e1a018f3206256ba331957cbec07ee8c066d477a35ac2c0cb66de4539871d7",
+    "neuropa/providers/opencode_cli.py": "eb9e11f52aa21ee0165126f109a9c0a44444a28ecbfd01e099925640d113e894",
+    "tests/test_handoff_fixes.py": "2949dd2d8997d54637a441cdc5dc429b56af112b211d430ee5c51243d1288e93",
+    "tests/test_opencode_p0.py": "0d3b6f23b70b0585aadb8f4fdb452c8d17e7255357b9d4424e65a89ec35d979e"
+  }
+}

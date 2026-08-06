@@ -17,10 +17,11 @@ from urllib.parse import urlsplit
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
-from neuropa.domain import Database, InboxItem, Task, FocusSession, MemoryClaim, ENTITY_TYPES, default_data_dir, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Artifact
+from neuropa.domain import Database, InboxItem, Task, FocusSession, MemoryClaim, ENTITY_TYPES, default_data_dir, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Artifact, AgentProfile, Skill, MCPServer
 from neuropa.domain.today import TodayService
 from neuropa.memory import MemoryClaimService
 from neuropa.memory.graph import build_memory_graph
+from neuropa.memory.wiki import WikiService
 from neuropa.providers import NoAIProviderAvailable, ProviderRouter
 from neuropa.services import HarnessService
 
@@ -48,14 +49,24 @@ def client_in_cidr(host: str | None, lan_cidr: str | None) -> bool:
         return host == "testclient"
 
 
-def client_allowed_for_token(host: str | None, lan_cidr: str | None) -> bool:
-    """Master-token retrieval is loopback-only; LAN always uses pairing."""
-    return host in {"127.0.0.1", "::1", "testclient"}
+def client_allowed_for_token(host: str | None, lan_cidr: str | None, pairing_required: bool = False) -> bool:
+    """Token retrieval is allowed from loopback always, and from trusted LAN when pairing is not required."""
+    if host in {"127.0.0.1", "::1", "testclient"}:
+        return True
+    if pairing_required:
+        return False
+    if lan_cidr:
+        try:
+            return ipaddress.ip_address(host or "") in validate_lan_cidr(lan_cidr)
+        except (ValueError, TypeError):
+            pass
+    return False
 
 
 class PairingGate:
     def __init__(self, code: str | None, cidr: str | None):
         self.code = code or ""
+        self.required = bool(code)
         self.network = validate_lan_cidr(cidr) if cidr else None
         self.failures: dict[str, int] = {}
         self.device_tokens: dict[str, str] = {}
@@ -165,8 +176,100 @@ class SessionRequest(BaseModel):
     local_only: bool = False
 
 
+class ProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = None
+    display_name: str | None = None
+    system_prompt: str | None = None
+    default_provider: str | None = None
+    default_mode_id: str | None = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+
+
+class AgentModeCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    slug: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    description: str = Field(default="", max_length=500)
+    system_prompt: str = Field(default="", max_length=12000)
+    temperature: float = Field(default=0.5, ge=0, le=2)
+    enabled: bool = True
+    tool_ids: list[str] = Field(default_factory=list, max_length=64)
+
+
+class AgentModeUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    slug: str | None = Field(default=None, min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    description: str | None = Field(default=None, max_length=500)
+    system_prompt: str | None = Field(default=None, max_length=12000)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    enabled: bool | None = None
+    tool_ids: list[str] | None = Field(default=None, max_length=64)
+
+
+class IdentityUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    soul_md: str = Field(min_length=1, max_length=32768)
+    agents_md: str = Field(min_length=1, max_length=32768)
+
+
+class ExportSelectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sections: list[str] = Field(default_factory=list)
+    format: Literal["json"] = "json"
+
+
+class WikiWriteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1)
+    body: str = ""
+    tags: list[str] = Field(default_factory=list)
+    summary: str = ""
+    source_claims: list[str] = Field(default_factory=list)
+    related_concepts: list[str] = Field(default_factory=list)
+
+
 class PairRequest(BaseModel):
     code: str = Field(min_length=1, max_length=256)
+
+
+class SkillCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=500)
+    version: str = Field(default="1.0.0", max_length=40)
+    source: Literal["local", "builtin", "repository"] = "local"
+    content_path: str = Field(default="", max_length=500)
+    enabled: bool = False
+
+
+class SkillUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    version: str | None = Field(default=None, max_length=40)
+    source: Literal["local", "builtin", "repository"] | None = None
+    content_path: str | None = Field(default=None, max_length=500)
+    enabled: bool | None = None
+
+
+class MCPServerCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    server_type: Literal["local", "http"] = "local"
+    command: list[str] = Field(default_factory=list, max_length=32)
+    url: str = Field(default="", max_length=500)
+    enabled: bool = False
+
+
+class MCPServerUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    server_type: Literal["local", "http"] | None = None
+    command: list[str] | None = Field(default=None, max_length=32)
+    url: str | None = Field(default=None, max_length=500)
+    enabled: bool | None = None
 
 
 def create_app(db: Database | None = None, router: ProviderRouter | None = None, harness: HarnessService | None = None) -> FastAPI:
@@ -176,7 +279,8 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     harness_service = harness or HarnessService(database, provider_router)
     pairing_gate = PairingGate(os.getenv("NEUROPA_PAIRING_CODE"), os.getenv("NEUROPA_LAN_CIDR"))
     today = TodayService(database)
-    memory = MemoryClaimService(database)
+    wiki = WikiService(database.path.parent)
+    memory = MemoryClaimService(database, wiki=wiki)
     app = FastAPI(title="NeuroPA Local API", version="0.2.0")
     frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
     assets_dir = frontend_dir / "assets"
@@ -188,7 +292,8 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
         host = request.client.host if request.client else None
         master = credentials and credentials.scheme.lower() == "bearer" and secrets.compare_digest(credentials.credentials, get_token())
         device = pairing_gate.valid_device(request.cookies.get("neuropa_session"), host)
-        if not master and not device:
+        trusted_lan = not pairing_gate.required and client_in_cidr(host, os.getenv("NEUROPA_LAN_CIDR"))
+        if not master and not device and not trusted_lan:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required", headers={"WWW-Authenticate": "Bearer"})
 
     def valid_token(token: str | None) -> bool:
@@ -201,7 +306,7 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     @app.get("/api/token")
     def frontend_token(request: Request, response: Response) -> dict[str, bool]:
         host = request.client.host if request.client else None
-        if not client_allowed_for_token(host, os.getenv("NEUROPA_LAN_CIDR")):
+        if not client_allowed_for_token(host, os.getenv("NEUROPA_LAN_CIDR"), pairing_gate.required):
             raise HTTPException(status_code=403, detail="Token pairing is loopback-only")
         device = pairing_gate.issue_device(host or "loopback")
         response.set_cookie("neuropa_session", device, max_age=8 * 60 * 60, httponly=True, samesite="strict", secure=False)
@@ -289,6 +394,29 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     def agent_modes() -> list[dict[str, Any]]:
         return [x.to_dict() for x in database.list("agent_mode")]
 
+    @app.post("/api/agent-modes", status_code=201, dependencies=[Depends(require_auth)])
+    def create_agent_mode(payload: AgentModeCreateRequest) -> dict[str, Any]:
+        if any(getattr(mode, "slug", "") == payload.slug for mode in database.list("agent_mode")):
+            raise HTTPException(409, "Mode slug already exists")
+        return database.create(AgentMode(**payload.model_dump())).to_dict()
+
+    @app.patch("/api/agent-modes/{mode_id}", dependencies=[Depends(require_auth)])
+    def update_agent_mode(mode_id: str, payload: AgentModeUpdateRequest) -> dict[str, Any]:
+        mode = database.get("agent_mode", mode_id)
+        if not mode:
+            raise HTTPException(404, "Agent mode not found")
+        changes = payload.model_dump(exclude_none=True)
+        slug = changes.get("slug")
+        if slug and any(item.id != mode_id and getattr(item, "slug", "") == slug for item in database.list("agent_mode")):
+            raise HTTPException(409, "Mode slug already exists")
+        return database.update(mode, **changes).to_dict()
+
+    @app.delete("/api/agent-modes/{mode_id}", dependencies=[Depends(require_auth)])
+    def delete_agent_mode(mode_id: str) -> dict[str, bool]:
+        if not database.soft_delete("agent_mode", mode_id):
+            raise HTTPException(404, "Agent mode not found")
+        return {"deleted": True}
+
     @app.get("/api/tools", dependencies=[Depends(require_auth)])
     def tools() -> list[dict[str, Any]]:
         return [x.to_dict() for x in database.list("tool_definition")]
@@ -297,10 +425,201 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     def artifacts() -> list[dict[str, Any]]:
         return [x.to_dict() for x in database.list("artifact")]
 
+    @app.get("/api/artifacts/{artifact_id}", dependencies=[Depends(require_auth)])
+    def read_artifact(artifact_id: str) -> dict[str, Any]:
+        try:
+            return harness_service.read_artifact(artifact_id)
+        except KeyError as exc:
+            raise HTTPException(404, "Artifact not found") from exc
+        except (ValueError, FileNotFoundError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/artifacts/{artifact_id}/raw", dependencies=[Depends(require_auth)])
+    def artifact_raw(artifact_id: str, inline: int = 0) -> FileResponse:
+        try:
+            target, media, name = harness_service.artifact_file(artifact_id)
+        except KeyError as exc:
+            raise HTTPException(404, "Artifact not found") from exc
+        except (ValueError, FileNotFoundError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        headers: dict[str, str] = {}
+        if inline and media == "text/html":
+            # Sandboxed origin: generated HTML cannot touch app cookies/storage.
+            headers["Content-Security-Policy"] = "sandbox allow-scripts allow-modals"
+        else:
+            headers["Content-Disposition"] = f'attachment; filename="{name.replace(chr(34), "")}"'
+        return FileResponse(target, media_type=media, headers=headers)
+
     @app.post("/api/messages/{message_id}/artifact", dependencies=[Depends(require_auth)])
     def message_artifact(message_id: str) -> dict[str, Any]:
         try: return harness_service.create_artifact(message_id).to_dict()
         except KeyError as exc: raise HTTPException(404, "Assistant message not found") from exc
+
+    # ── AgentProfile ──
+
+    @app.get("/api/profile", dependencies=[Depends(require_auth)])
+    def get_primary_profile() -> dict[str, Any]:
+        profile = harness_service.primary_profile()
+        if not profile:
+            raise HTTPException(404, "No primary agent profile found")
+        return profile.to_dict()
+
+    @app.put("/api/profile", dependencies=[Depends(require_auth)])
+    def update_primary_profile(payload: ProfileUpdateRequest) -> dict[str, Any]:
+        profile = harness_service.primary_profile()
+        if not profile:
+            raise HTTPException(404, "No primary agent profile found")
+        try:
+            return harness_service.update_profile(profile.id, **payload.model_dump(exclude_none=True)).to_dict()
+        except KeyError as exc:
+            raise HTTPException(404, "Profile not found") from exc
+
+    @app.get("/api/identity", dependencies=[Depends(require_auth)])
+    def get_identity() -> dict[str, str]:
+        return harness_service.identity_docs()
+
+    @app.put("/api/identity", dependencies=[Depends(require_auth)])
+    def update_identity(payload: IdentityUpdateRequest) -> dict[str, str]:
+        return harness_service.update_identity(**payload.model_dump())
+
+    # ── Skills + MCP workspace registry ──
+
+    @app.get("/api/skills", dependencies=[Depends(require_auth)])
+    def list_skills() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("skill")]
+
+    @app.post("/api/skills", status_code=201, dependencies=[Depends(require_auth)])
+    def create_skill(payload: SkillCreateRequest) -> dict[str, Any]:
+        return database.create(Skill(**payload.model_dump())).to_dict()
+
+    @app.patch("/api/skills/{skill_id}", dependencies=[Depends(require_auth)])
+    def update_skill(skill_id: str, payload: SkillUpdateRequest) -> dict[str, Any]:
+        skill = database.get("skill", skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill not found")
+        return database.update(skill, **payload.model_dump(exclude_none=True)).to_dict()
+
+    @app.delete("/api/skills/{skill_id}", dependencies=[Depends(require_auth)])
+    def delete_skill(skill_id: str) -> dict[str, bool]:
+        if not database.soft_delete("skill", skill_id):
+            raise HTTPException(404, "Skill not found")
+        return {"deleted": True}
+
+    @app.get("/api/mcp-servers", dependencies=[Depends(require_auth)])
+    def list_mcp_servers() -> list[dict[str, Any]]:
+        return [x.to_dict() for x in database.list("mcp_server")]
+
+    @app.post("/api/mcp-servers", status_code=201, dependencies=[Depends(require_auth)])
+    def create_mcp_server(payload: MCPServerCreateRequest) -> dict[str, Any]:
+        return database.create(MCPServer(**payload.model_dump())).to_dict()
+
+    @app.patch("/api/mcp-servers/{server_id}", dependencies=[Depends(require_auth)])
+    def update_mcp_server(server_id: str, payload: MCPServerUpdateRequest) -> dict[str, Any]:
+        server = database.get("mcp_server", server_id)
+        if not server:
+            raise HTTPException(404, "MCP server not found")
+        return database.update(server, **payload.model_dump(exclude_none=True)).to_dict()
+
+    @app.delete("/api/mcp-servers/{server_id}", dependencies=[Depends(require_auth)])
+    def delete_mcp_server(server_id: str) -> dict[str, bool]:
+        if not database.soft_delete("mcp_server", server_id):
+            raise HTTPException(404, "MCP server not found")
+        return {"deleted": True}
+
+    # ── Selective export ──
+
+    _SECRET_KEY_FRAGMENTS = frozenset([
+        "token", "api_key", "apikey", "secret", "password", "passwd", "credential",
+        "oauth", "bearer", "authorization", "pairing_code",
+    ])
+
+    _EXPORTABLE_SECTIONS = {
+        "agent_profile", "workspace", "chat_session", "chat_message",
+        "memory_claim", "artifact", "skill", "tool_definition",
+        "agent_mode", "mcp_server", "preset",
+    }
+
+    def _redact_secrets_recursive(obj: Any, path: str = "", redacted: list[str] | None = None) -> Any:
+        """Recursively redact any key whose name contains a secret fragment."""
+        if redacted is None:
+            redacted = []
+        if isinstance(obj, dict):
+            clean: dict[str, Any] = {}
+            for key, val in obj.items():
+                key_lower = str(key).lower()
+                full_path = f"{path}.{key}" if path else str(key)
+                if any(frag in key_lower for frag in _SECRET_KEY_FRAGMENTS):
+                    redacted.append(full_path)
+                    clean[key] = "[REDACTED]"
+                else:
+                    clean[key] = _redact_secrets_recursive(val, full_path, redacted)
+            return clean
+        if isinstance(obj, list):
+            return [_redact_secrets_recursive(item, f"{path}[{i}]", redacted) for i, item in enumerate(obj)]
+        return obj
+
+    @app.post("/api/export/selected", dependencies=[Depends(require_auth)])
+    def export_selected(payload: ExportSelectionRequest) -> dict[str, Any]:
+        unknown = sorted(set(payload.sections) - _EXPORTABLE_SECTIONS)
+        if unknown:
+            raise HTTPException(400, f"Unknown export sections: {', '.join(unknown)}")
+        sections = list(dict.fromkeys(payload.sections))
+        redacted_keys: list[str] = []
+        entities: dict[str, Any] = {}
+        for typ in sections:
+            raw_rows = [obj.to_dict() for obj in database.list(typ)]
+            entities[typ] = [_redact_secrets_recursive(row, redacted=redacted_keys) for row in raw_rows]
+        import hashlib as _hl
+        file_hashes: dict[str, str] = {}
+        for typ, rows in entities.items():
+            content = json.dumps(rows, ensure_ascii=False, sort_keys=True)
+            file_hashes[typ] = _hl.sha256(content.encode()).hexdigest()
+        result: dict[str, Any] = {
+            "schema_version": "1.0.0",
+            "sections": sections,
+            "entities": entities,
+            "file_hashes": file_hashes,
+            "redacted_keys": redacted_keys,
+            "omitted_secret_declaration": "Keys matching secret patterns (token, api_key, secret, password, credential, oauth, bearer, authorization, pairing_code) are replaced with [REDACTED] before hashing.",
+        }
+        return result
+
+    # ── Wiki (Turn C1) ──
+
+    @app.get("/api/wiki/pages", dependencies=[Depends(require_auth)])
+    def wiki_list_pages(wiki_type: str | None = Query(default=None)):
+        try:
+            return wiki.list_pages(wiki_type)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/wiki/pages/{wiki_type}/{slug}", dependencies=[Depends(require_auth)])
+    def wiki_read_page(wiki_type: str, slug: str):
+        try:
+            return wiki.read_page(wiki_type, slug)
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.put("/api/wiki/pages/{wiki_type}/{slug}", status_code=201, dependencies=[Depends(require_auth)])
+    def wiki_write_page(wiki_type: str, slug: str, payload: WikiWriteRequest):
+        try:
+            return wiki.write_page(wiki_type, slug, **payload.model_dump())
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/wiki/search", dependencies=[Depends(require_auth)])
+    def wiki_search(q: str = Query(min_length=1)):
+        return wiki.search(q)
+
+    @app.get("/api/wiki/lint", dependencies=[Depends(require_auth)])
+    def wiki_lint():
+        return {"issues": wiki.lint()}
+
+    @app.get("/api/wiki/backlinks", dependencies=[Depends(require_auth)])
+    def wiki_backlinks():
+        return {"backlinks": wiki.backlinks()}
 
     @app.post("/api/setup/detect", dependencies=[Depends(require_auth)])
     def setup_detect() -> dict[str, Any]:
@@ -424,7 +743,7 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     @app.get("/api/export", dependencies=[Depends(require_auth)])
     def export_data() -> dict[str, Any]:
         entities = {typ: [obj.to_dict() for obj in database.list(typ)] for typ in ENTITY_TYPES}
-        return {"replace": True, "entities": entities, **entities}
+        return {"replace": True, "entities": entities, "identity": harness_service.identity_docs(), **entities}
 
     @app.post("/api/import", dependencies=[Depends(require_auth)])
     async def import_data(request: Request) -> dict[str, Any]:
@@ -437,6 +756,12 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
             raise HTTPException(400, "JSON inválido") from exc
         if not isinstance(payload, dict) or payload.get("replace") is not True or not isinstance(payload.get("entities"), dict):
             raise HTTPException(400, "Se requiere replace=true y entities")
+        identity = payload.get("identity")
+        if identity is not None:
+            if not isinstance(identity, dict) or set(identity) != {"soul_md", "agents_md"}:
+                raise HTTPException(400, "identity inválida")
+            if any(not isinstance(identity[key], str) or not identity[key].strip() or len(identity[key]) > 32768 for key in ("soul_md", "agents_md")):
+                raise HTTPException(400, "capas de identidad inválidas")
         prepared = []
         seen: set[str] = set()
         try:
@@ -460,10 +785,19 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
                     data = dict(row)
                     data.pop("entity_type", None)
                     prepared.append(cls(**data))
+            previous = [obj for typ in ENTITY_TYPES for obj in database.list(typ)]
+            previous_identity = harness_service.identity_docs()
             database.replace_entities(prepared)
-        except (ValueError, TypeError, KeyError) as exc:
+            if identity is not None:
+                try:
+                    harness_service.update_identity(soul_md=identity["soul_md"], agents_md=identity["agents_md"])
+                except OSError as exc:
+                    database.replace_entities(previous)
+                    harness_service.update_identity(**previous_identity)
+                    raise RuntimeError("no fue posible guardar las capas de identidad") from exc
+        except (ValueError, TypeError, KeyError, RuntimeError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        return {"imported": len(prepared)}
+        return {"imported": len(prepared), "identity_imported": identity is not None}
 
     return app
 

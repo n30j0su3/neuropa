@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from neuropa.api.app import create_app, validate_lan_cidr
+from neuropa.cli import build_parser
 from neuropa.domain import Database, Task
 from neuropa.providers.opencode_cli import OpenCodeCLI
 from neuropa.services import HarnessService
@@ -72,6 +73,7 @@ def test_pairing_is_one_time_cookie_and_token_endpoint_is_loopback_only(tmp_path
     db = Database(tmp_path / "db.sqlite")
     client = TestClient(create_app(db), client=("192.168.1.50", 50000))
     assert client.get("/api/token").status_code == 403
+    assert client.get("/api/sessions").status_code == 401
     paired = client.post("/api/pair", json={"code": "pair-me"})
     assert paired.json() == {"paired": True}
     cookie = paired.headers["set-cookie"]
@@ -79,6 +81,23 @@ def test_pairing_is_one_time_cookie_and_token_endpoint_is_loopback_only(tmp_path
     assert client.get("/api/sessions").status_code == 200
     assert client.post("/api/pair", json={"code": "pair-me"}).status_code == 403
     db.close()
+
+
+def test_trusted_lan_is_direct_when_pairing_is_not_enabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEUROPA_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("NEUROPA_LAN_CIDR", "192.168.1.0/24")
+    monkeypatch.delenv("NEUROPA_PAIRING_CODE", raising=False)
+    db = Database(tmp_path / "db.sqlite")
+    client = TestClient(create_app(db), client=("192.168.1.50", 50000))
+    assert client.get("/api/token").status_code == 200
+    assert client.get("/api/sessions").status_code == 200
+    db.close()
+
+
+def test_pairing_cli_flag_is_explicit_opt_in():
+    args = build_parser().parse_args(["--lan", "--pairing"])
+    assert args.lan is True
+    assert args.pairing is True
 
 
 def test_import_rejects_hostile_payload_without_deleting_existing_data(tmp_path, monkeypatch):

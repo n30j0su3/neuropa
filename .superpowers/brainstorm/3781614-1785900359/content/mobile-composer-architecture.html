@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeuroPA · Panel móvil</title>
+<style>
+:root{--bg:#0f1117;--surface:#171a23;--surface2:#1d222d;--ink:#f3f5f7;--muted:#9aa4b2;--line:rgba(255,255,255,.1);--cyan:#40e0d0;--soft:rgba(64,224,208,.12);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}.page{max-width:1180px;margin:auto;padding:28px 18px 60px}.eyebrow{color:var(--cyan);font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:24px}.head h1{margin:6px 0 4px;font-size:clamp(26px,4vw,42px);letter-spacing:-.04em}.head p{margin:0;max-width:70ch;color:var(--muted)}.recommend{border:1px solid rgba(64,224,208,.35);background:var(--soft);padding:8px 12px;border-radius:999px;color:var(--cyan);white-space:nowrap;font-size:12px;font-weight:800}.options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.option{position:relative;min-width:0;border:1px solid var(--line);border-radius:22px;background:#12151c;padding:15px;cursor:pointer;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}.option:hover{transform:translateY(-3px);border-color:rgba(64,224,208,.45)}.option.selected{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(64,224,208,.16),0 20px 45px rgba(0,0,0,.32)}.choice{position:absolute;top:12px;left:12px;width:30px;height:30px;border-radius:10px;background:var(--surface2);display:grid;place-items:center;font-weight:900;color:var(--cyan);z-index:2}.phone{width:min(100%,315px);height:500px;margin:0 auto 16px;border:7px solid #282e3a;border-radius:33px;background:#10131a;overflow:hidden;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.28)}.phone::before{content:"";position:absolute;z-index:4;top:7px;left:50%;translate:-50%;width:84px;height:18px;border-radius:12px;background:#080a0e}.chat{height:100%;padding:46px 12px 92px;display:flex;flex-direction:column;gap:10px}.bubble{max-width:84%;padding:10px 12px;border-radius:13px;background:var(--surface2);color:#dfe5ea;font-size:11px}.bubble.user{align-self:flex-end;background:rgba(64,224,208,.14);border:1px solid rgba(64,224,208,.22)}.composer{position:absolute;z-index:3;left:7px;right:7px;bottom:7px;border:1px solid rgba(64,224,208,.24);border-radius:18px;background:rgba(23,26,35,.98);padding:8px;box-shadow:0 -12px 35px rgba(0,0,0,.25);transition:height .25s ease}.topline{display:flex;gap:6px;align-items:center}.textarea{height:44px;flex:1;border:1px solid var(--line);border-radius:11px;background:#0f1117;padding:11px;color:var(--muted);font-size:11px}.send,.mini{height:44px;border:0;border-radius:11px;background:var(--cyan);color:#072c2a;font-weight:900}.send{padding:0 13px}.mini{width:44px;padding:0;font-size:18px}.summary{display:flex;align-items:center;justify-content:space-between;gap:8px;height:44px;margin-bottom:7px;padding:0 11px;border:1px solid var(--line);border-radius:11px;font-size:11px;color:#d8e0e6}.summary strong{color:var(--cyan)}.accordion{display:grid;gap:6px;margin-bottom:7px}.acc{min-height:42px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:10px;color:var(--muted)}.acc b{display:flex;justify-content:space-between;color:var(--ink);font-size:11px}.steps{display:flex;gap:5px;margin:8px 0 12px}.step{flex:1;padding:7px 4px;text-align:center;border-radius:8px;background:var(--surface2);font-size:9px;color:var(--muted)}.step.active{color:var(--cyan);background:var(--soft)}.option h2{margin:0 0 6px;font-size:19px;letter-spacing:-.02em}.option p{margin:0;color:var(--muted);font-size:13px}.tag{display:inline-flex;margin-top:10px;padding:5px 8px;border-radius:999px;background:var(--surface2);color:#cbd4dc;font-size:10px;font-weight:700}.a .composer{height:204px}.a .chat{padding-bottom:220px}.b .composer{height:142px}.b .chat{padding-bottom:158px}.sheet{position:absolute;z-index:2;left:7px;right:7px;bottom:67px;height:218px;border:1px solid var(--line);border-radius:18px 18px 8px 8px;background:var(--surface);padding:12px}.c .composer{height:60px}.c .chat{padding-bottom:75px}.legend{margin-top:22px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:18px}.legend strong{color:var(--ink)}
+@media(max-width:860px){.head{align-items:start;flex-direction:column}.options{grid-template-columns:1fr}.option{display:grid;grid-template-columns:minmax(230px,315px) 1fr;gap:16px}.phone{margin:0}.copy{align-self:center}.legend{flex-direction:column}}
+@media(max-width:580px){.page{padding:20px 12px 50px}.option{display:block}.phone{height:470px}.recommend{white-space:normal}.legend{font-size:12px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.001ms!important;animation-duration:.001ms!important}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="head">
+    <div><div class="eyebrow">NeuroPA · Mobile composer</div><h1>¿Cómo debe retraerse el panel?</h1><p>Las tres opciones preservan mensajes, textarea, Enviar, targets de 44 px y reducción de movimiento. Selecciona la arquitectura de interacción; el estilo visual actual no cambia.</p></div>
+    <div class="recommend">Recomendación: A · tres niveles</div>
+  </header>
+  <section class="options">
+    <article class="option a" data-choice="a-three-levels" onclick="document.querySelectorAll('.option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');toggleSelect(this)">
+      <div class="choice">A</div>
+      <div class="phone">
+        <div class="chat"><div class="bubble">¿En qué quieres avanzar?</div><div class="bubble user">Resume la sesión y crea el siguiente paso.</div><div class="bubble">Listo. Primero consolidaré la decisión actual…</div></div>
+        <div class="composer">
+          <div class="steps"><div class="step">Expandido</div><div class="step active">Compacto</div><div class="step">Foco</div></div>
+          <div class="summary"><span><strong>Laguna S</strong> · Claridad · Sesión</span><span>⌃</span></div>
+          <div class="topline"><div class="textarea">Escribe un mensaje…</div><button class="send">Enviar</button><button class="mini" aria-label="Retraer">⌄</button></div>
+        </div>
+      </div>
+      <div class="copy"><h2>Tres niveles progresivos</h2><p><b>Expandido</b> abre controles tap-a-tap. <b>Compacto</b> es el estado actual y predeterminado. <b>Foco</b> deja sólo mensaje, Enviar y un control mini. El icono recorre estados sin abandonar el chat.</p><span class="tag">Alineado literalmente con el ajuste solicitado</span></div>
+    </article>
+
+    <article class="option b" data-choice="b-two-levels" onclick="document.querySelectorAll('.option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');toggleSelect(this)">
+      <div class="choice">B</div>
+      <div class="phone">
+        <div class="chat"><div class="bubble">¿En qué quieres avanzar?</div><div class="bubble user">Resume la sesión y crea el siguiente paso.</div><div class="bubble">Listo. Primero consolidaré la decisión actual…</div></div>
+        <div class="composer">
+          <div class="accordion"><div class="acc"><b>Modelo <span>⌄</span></b>Laguna S 2.1</div></div>
+          <div class="topline"><div class="textarea">Escribe un mensaje…</div><button class="send">Enviar</button><button class="mini">⌃</button></div>
+        </div>
+      </div>
+      <div class="copy"><h2>Dos niveles + acordeones</h2><p>El panel sólo alterna entre compacto y foco. Modelo, modo y contexto son acordeones internos independientes. Menos estado global, pero la versión “expandida” deja de ser un nivel claramente identificable.</p><span class="tag">Más simple en código, menos explícito</span></div>
+    </article>
+
+    <article class="option c" data-choice="c-bottom-sheet" onclick="document.querySelectorAll('.option').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');toggleSelect(this)">
+      <div class="choice">C</div>
+      <div class="phone">
+        <div class="chat"><div class="bubble">¿En qué quieres avanzar?</div><div class="bubble user">Resume la sesión y crea el siguiente paso.</div><div class="bubble">Listo. Primero consolidaré la decisión actual…</div></div>
+        <div class="sheet"><div class="eyebrow">Configurar respuesta</div><div class="accordion" style="margin-top:10px"><div class="acc"><b>Modelo <span>⌄</span></b>Laguna S 2.1</div><div class="acc"><b>Modo <span>⌄</span></b>Claridad</div><div class="acc"><b>Contexto <span>⌄</span></b>Sesión actual</div></div></div>
+        <div class="composer"><div class="topline"><div class="textarea">Escribe…</div><button class="send">Enviar</button><button class="mini">⚙</button></div></div>
+      </div>
+      <div class="copy"><h2>Composer mínimo + bottom sheet</h2><p>El composer siempre ocupa el mínimo. Configuración vive en una hoja modal desde el icono. Maximiza el chat, pero separa decisiones críticas de egress del momento de envío.</p><span class="tag">Máximo espacio, mayor cambio conceptual</span></div>
+    </article>
+  </section>
+  <footer class="legend"><span><strong>A preserva el producto:</strong> provider, modelo, modo y contexto siguen visibles antes de enviar.</span><span>La animación propuesta usa transición de altura/opacidad y respeta <code>prefers-reduced-motion</code>.</span></footer>
+</main>
+</body>
+</html>

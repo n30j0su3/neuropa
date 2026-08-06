@@ -1,0 +1,62 @@
+{
+  "schema": "neuropa/n30-settings-integrations-mobile-receipt/v1",
+  "generated_at": "2026-08-04T20:46:19-05:00",
+  "runtime": {
+    "url": "http://192.168.1.21:8474/",
+    "health": "ok",
+    "pairing_required": false
+  },
+  "scope": {
+    "wizard": "Re-ejecutable desde Ajustes sin borrar sesiones, memoria ni guardados.",
+    "skills": ["install", "edit", "enable", "disable", "delete"],
+    "mcp_servers": ["register", "edit", "enable", "disable", "delete"],
+    "mobile_composer": "Una fila de envío, dock progresivo, textarea inicial de una línea y targets táctiles >=44px."
+  },
+  "yagni_boundary": {
+    "registry_only": true,
+    "arbitrary_code_execution": false,
+    "marketplace": false,
+    "default_enabled_on_create": false,
+    "note": "Skills y MCP se registran/configuran en el workspace; NeuroPA no descarga ni ejecuta código arbitrario desde esta UI."
+  },
+  "api": {
+    "skills": ["POST /api/skills", "PATCH /api/skills/{id}", "DELETE /api/skills/{id}"],
+    "mcp_servers": ["POST /api/mcp-servers", "PATCH /api/mcp-servers/{id}", "DELETE /api/mcp-servers/{id}"],
+    "validation": "Pydantic extra=forbid, nombres obligatorios, tipos MCP local|http y límites de longitud."
+  },
+  "browser_qa": {
+    "script": "/tmp/neuropa_p2_qa.py",
+    "result": "/tmp/neuropa-p2-qa.json",
+    "result_sha256": "25fa0ccce0aaa1d712ae499abcc91b396dd94991093e3ed29bf6acde3c191329",
+    "viewports": [
+      {"width": 1600, "height": 900, "composer_height": 269.0, "horizontal_overflow": false, "undersized_controls": 0, "wizard_reopened": true, "errors": []},
+      {"width": 768, "height": 1024, "composer_height": 269.0, "horizontal_overflow": false, "undersized_controls": 0, "wizard_reopened": true, "errors": []},
+      {"width": 480, "height": 900, "composer_height": 149.6, "horizontal_overflow": false, "undersized_controls": 0, "wizard_reopened": true, "errors": []}
+    ],
+    "live_ui_crud": {
+      "skill": "created disabled, rendered, enabled, deleted",
+      "mcp": "created disabled, rendered, edited; delete endpoint verified and cleanup completed"
+    },
+    "screenshots": [
+      "/tmp/neuropa-p2-1600-workspace.png",
+      "/tmp/neuropa-p2-1600-settings.png",
+      "/tmp/neuropa-p2-768-workspace.png",
+      "/tmp/neuropa-p2-768-settings.png",
+      "/tmp/neuropa-p2-480-workspace.png",
+      "/tmp/neuropa-p2-480-settings.png"
+    ]
+  },
+  "verification": {
+    "pytest": "128 passed, 1 pre-existing StarletteDeprecationWarning",
+    "compileall": "pass",
+    "node_check": "pass",
+    "git_diff_check": "pass",
+    "health": {"status": "ok"}
+  },
+  "sha256": {
+    "neuropa/api/app.py": "7c51f699d6fe513a8c4688074a8d3eb8ef1ea3bd9467adb71a63951645ad2109",
+    "neuropa/frontend/index.html": "a4b794ac02920d5bfa7fedcf6e2918afbf120c35610a7a7091dee4d926c37293",
+    "tests/test_turn_b.py": "e5b331a54a18e0d9e59df4eca4414b8f91e7b4ab7de25941239c3e03715d1a8c"
+  },
+  "verdict": "PASS_FOR_N30_HUMAN_GATE"
+}

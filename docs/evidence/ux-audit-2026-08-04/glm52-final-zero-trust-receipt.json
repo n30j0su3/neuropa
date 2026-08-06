@@ -1,0 +1,90 @@
+{
+  "schema": "neuropa/zero-trust-review-receipt/v1",
+  "reviewed_executor": "glm-5.2 via Z.AI",
+  "final_reviewer": "gpt-5.6-sol via OpenAI Codex",
+  "timestamp": "2026-08-04T18:36:25-05:00",
+  "branch": "feat/p1-integrated",
+  "head": "81c6929c39f318742fb2fc4fe9818b4f3e573e82",
+  "verdict": "PASS_FOR_N30_HUMAN_GATE",
+  "original_findings_closed": [
+    "B1 recursive secret redaction before serialization and hashing",
+    "B2 AgentProfile provider and mode fallbacks",
+    "B3 Profile, export, Skills/MCP and Wiki frontend wiring",
+    "H1 deterministic backlinks",
+    "H2 structured lint failures",
+    "H3 Wiki type and route contract"
+  ],
+  "final_review_additional_fixes": [
+    "Replaced entitys/querys pluralization with canonical type-directory mapping",
+    "Included notes in Wiki initialization, listing, lint and backlinks",
+    "Removed lint dependency on backlinks that crashed on malformed YAML",
+    "Validated models against resolved_provider rather than only explicit provider",
+    "Rejected unknown export sections with HTTP 400 instead of silently dropping them",
+    "Mapped invalid Wiki list types to HTTP 400",
+    "Added provider and mode fields to Profile settings UI",
+    "Made Wiki inspector reachable on desktop, tablet and mobile"
+  ],
+  "verification": {
+    "compileall": {"status": "PASS", "command": "python3 -m compileall -q neuropa tests"},
+    "javascript_syntax": {"status": "PASS", "command": "node --check /tmp/neuropa-final.js"},
+    "pytest": {"status": "PASS", "passed": 123, "failed": 0, "warnings": 1},
+    "git_diff_check": {"status": "PASS"},
+    "runtime_8474": {"http_status": 200, "modified": false},
+    "ephemeral_runtime": {"port": 8589, "destroyed": true}
+  },
+  "browser_qa": [
+    {
+      "viewport": "desktop",
+      "width": 1600,
+      "height": 1000,
+      "profile_save_readback": "PASS",
+      "selective_export_download": "PASS",
+      "wiki_create_index_read": "PASS",
+      "overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0,
+      "undersized_visible_targets": 0,
+      "screenshot": "/tmp/neuropa-sol-desktop.png"
+    },
+    {
+      "viewport": "tablet",
+      "width": 768,
+      "height": 900,
+      "profile_save_readback": "PASS",
+      "selective_export_download": "PASS",
+      "wiki_create_index_read": "PASS",
+      "overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0,
+      "undersized_visible_targets": 0,
+      "screenshot": "/tmp/neuropa-sol-tablet.png"
+    },
+    {
+      "viewport": "mobile",
+      "width": 480,
+      "height": 860,
+      "profile_save_readback": "PASS",
+      "selective_export_download": "PASS",
+      "wiki_create_index_read": "PASS",
+      "overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0,
+      "undersized_visible_targets": 0,
+      "screenshot": "/tmp/neuropa-sol-mobile.png"
+    }
+  ],
+  "source_sha256": {
+    "neuropa/api/app.py": "76fec43a394d4a08fb69614e6cbc5505df5b259a09ee7f622a203e1a6c632608",
+    "neuropa/services/harness.py": "39db435321373efdbf365d70fec89601204aa17fbb03cdc7d549000b50c37546",
+    "neuropa/domain/models.py": "69611cdfa266f2f3955aa04715757c2937d362627520c69350ac504efc07e64c",
+    "neuropa/memory/wiki.py": "8573f5926b82adb62ed4b049b1601555dce2e01e21a8ad8ebedd62e996cc21b5",
+    "neuropa/frontend/index.html": "310cd7597a06e16e163a4008103678ed2c9381a7b6b9f988ff59a74d3a85d845",
+    "tests/test_handoff_fixes.py": "c591b76a71a6505b95a8a374d6e1500f0fd659627af114453c9d91db67470ca3",
+    "tests/test_turn_b.py": "6af059f820472d67da899e0c9c423d6dac14961e685dba1f127631c112f287f3",
+    "tests/test_turn_c.py": "c4e512ea045b4de07ea2aabad61d1d7e7b068eeaa38f8ed462dfb3029b3695c3"
+  },
+  "human_approval": "PENDING_N30"
+}

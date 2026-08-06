@@ -125,7 +125,36 @@ class Skill(Entity):
     enabled: bool = False
     permissions: dict[str, Any] = field(default_factory=dict)
     source: str = "local"
+    description: str = ""
+    tags: list[str] = field(default_factory=list)
+    content_path: str = ""
     entity_type: ClassVar[str] = "skill"
+
+
+@dataclass
+class MCPServer(Entity):
+    name: str = ""
+    server_type: str = "local"
+    command: list[str] = field(default_factory=list)
+    url: str = ""
+    enabled: bool = False
+    auth_status: str = "none"
+    health: str = "unknown"
+    last_error: str = ""
+    agent_profile_id: str | None = None
+    entity_type: ClassVar[str] = "mcp_server"
+
+
+@dataclass
+class AgentProfile(Entity):
+    name: str = "NeuroPA"
+    display_name: str = "NeuroPA"
+    system_prompt: str = ""
+    default_provider: str = "opencode_free"
+    default_mode_id: str | None = None
+    temperature: float = 0.5
+    is_primary: bool = False
+    entity_type: ClassVar[str] = "agent_profile"
 
 
 @dataclass
@@ -208,4 +237,4 @@ class Preset(Entity):
     config: dict[str, Any] = field(default_factory=dict)
     entity_type: ClassVar[str] = "preset"
 
-ENTITY_TYPES = {c.entity_type: c for c in [InboxItem, Task, Reminder, Project, FocusSession, CalendarEvent, MemoryClaim, Artifact, Skill, Provider, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Preset]}
+ENTITY_TYPES = {c.entity_type: c for c in [InboxItem, Task, Reminder, Project, FocusSession, CalendarEvent, MemoryClaim, Artifact, Skill, MCPServer, AgentProfile, Provider, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition, Preset]}

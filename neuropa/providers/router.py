@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
+import urllib.request
 from typing import Any
 
 from neuropa.core.providers.multi_engine import OllamaEngine, OpenAICompatEngine
@@ -17,14 +19,49 @@ class ProviderRouter:
 
     def __init__(self, byok_key: str | None = None, ollama: OllamaEngine | None = None, opencode: OpenCodeCLI | None = None):
         self.byok_key = byok_key or os.getenv("NEUROPA_BYOK_KEY", "")
+        self.byok_provider = os.getenv("NEUROPA_BYOK_PROVIDER", "https://openrouter.ai/api/v1").rstrip("/")
+        self.byok_models = [item.strip() for item in os.getenv("NEUROPA_BYOK_MODELS", "").split(",") if item.strip()]
+        self._openrouter_models: list[str] = []
+        self._openrouter_models_at = 0.0
         self.managed_provider = os.getenv("NEUROPA_MANAGED_PROVIDER", "")
         self.managed_key = os.getenv("NEUROPA_MANAGED_KEY", "")
         self.local = ollama or OllamaEngine(os.getenv("NEUROPA_OLLAMA_URL", "http://localhost:11434"))
-        self.opencode = opencode or OpenCodeCLI(timeout=int(os.getenv("NEUROPA_OPENCODE_TIMEOUT", "120")))
-        self.timeout = 30
+        self.opencode = opencode or OpenCodeCLI(timeout=int(os.getenv("NEUROPA_OPENCODE_TIMEOUT", "300")))
+        # Generation timeout shared by every provider lane. A short value (the
+        # previous hardcoded 30s) killed any real deliverable generation — e.g.
+        # single-file HTML reports — with a 503. Configurable per install.
+        self.timeout = int(os.getenv("NEUROPA_PROVIDER_TIMEOUT", "300"))
 
     def _cloud(self, key: str, provider: str) -> OpenAICompatEngine:
         return OpenAICompatEngine(key, base_url=provider if provider.startswith("http") else "https://api.openai.com/v1", models=["gpt-4o-mini"])
+
+    @staticmethod
+    def _free_first(models: list[str]) -> list[str]:
+        return sorted(dict.fromkeys(models), key=lambda model: (model != "openrouter/free" and not model.endswith(":free"), model != "openrouter/free", model))
+
+    def _openrouter_catalog(self) -> list[str]:
+        """Return the current free OpenRouter catalog plus explicit user models."""
+        if time.monotonic() - self._openrouter_models_at < 300 and self._openrouter_models:
+            return self._openrouter_models
+        try:
+            request = urllib.request.Request(f"{self.byok_provider}/models", headers={"Accept": "application/json"})
+            if self.byok_key:
+                request.add_header("Authorization", f"Bearer {self.byok_key}")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                rows = json.loads(response.read().decode()).get("data", [])
+            free = []
+            for row in rows:
+                model_id = str(row.get("id", ""))
+                pricing = row.get("pricing") or {}
+                zero_price = str(pricing.get("prompt", "")) == "0" and str(pricing.get("completion", "")) == "0"
+                if model_id and (model_id == "openrouter/free" or model_id.endswith(":free") or zero_price):
+                    free.append(model_id)
+            self._openrouter_models = self._free_first(["openrouter/free", *free, *self.byok_models])
+            self._openrouter_models_at = time.monotonic()
+        except Exception:
+            self._openrouter_models = self._free_first(["openrouter/free", *self.byok_models])
+            self._openrouter_models_at = time.monotonic()
+        return self._openrouter_models
 
     def _call(self, mode: str, messages: list[dict[str, str]], model: str, workspace: str | None = None) -> dict[str, Any]:
         if mode == "opencode_free":
@@ -35,12 +72,15 @@ class ProviderRouter:
         if mode == "managed":
             return self._cloud(self.managed_key, self.managed_provider).generate(messages, model=model or "gpt-4o-mini", timeout=self.timeout)
         if mode == "byok":
-            return self._cloud(self.byok_key, os.getenv("NEUROPA_BYOK_PROVIDER", "https://api.openai.com/v1")).generate(messages, model=model or "gpt-4o-mini", timeout=self.timeout)
+            models = self._free_first(self._openrouter_catalog()) if "openrouter.ai" in self.byok_provider else self.byok_models
+            selected = model or (models[0] if models else "gpt-4o-mini")
+            return self._cloud(self.byok_key, self.byok_provider).generate(messages, model=selected, timeout=self.timeout)
         raise RuntimeError("unknown provider")
 
     def _available(self, mode: str) -> bool:
         if mode == "opencode_free": return self.opencode.health()
         if mode == "local": return self.local.health()
+        if mode == "byok": return bool(self.byok_key) or "openrouter.ai" in self.byok_provider
         return bool((self.managed_key and self.managed_provider) if mode == "managed" else self.byok_key)
 
     def _catalog(self, mode: str) -> tuple[bool, list[str]]:
@@ -58,7 +98,10 @@ class ProviderRouter:
                 return True, list(self.local.list_models())
             except Exception:
                 return False, []
-        if mode in {"byok", "managed"} and self._available(mode):
+        if mode == "byok" and self._available(mode):
+            models = self._openrouter_catalog() if "openrouter.ai" in self.byok_provider else (self.byok_models or ["gpt-4o-mini"])
+            return True, self._free_first(models)
+        if mode == "managed" and self._available(mode):
             return True, ["gpt-4o-mini"]
         return False, []
 
@@ -97,6 +140,7 @@ class ProviderRouter:
         local_available = self.local.health()
         op_catalog_known, op_models = self._catalog("opencode_free")
         local_catalog_known, local_models = self._catalog("local")
+        byok_catalog_known, byok_models = self._catalog("byok")
         modes = {
             "opencode_free": {
                 "available": op_available, "healthy": op_available,
@@ -114,11 +158,13 @@ class ProviderRouter:
                 "recommended_model": local_models[0] if local_models else None,
             },
             "byok": {
-                "available": bool(self.byok_key), "healthy": bool(self.byok_key), "catalog_known": bool(self.byok_key),
-                "description": "Proveedor cloud con clave propia",
-                "privacy": "remote/byok", "privacy_label": "remote/byok", "cost": "variable", "cost_label": "variable",
-                "models": ["gpt-4o-mini"] if self.byok_key else [],
-                "recommended_model": "gpt-4o-mini" if self.byok_key else None,
+                "available": True if "openrouter.ai" in self.byok_provider else bool(self.byok_key),
+                "healthy": True if "openrouter.ai" in self.byok_provider else bool(self.byok_key),
+                "catalog_known": byok_catalog_known,
+                "description": "OpenRouter · modelos gratuitos primero" if "openrouter.ai" in self.byok_provider else "Proveedor cloud con clave propia",
+                "privacy": "remote/byok", "privacy_label": "remote/byok", "cost": "free", "cost_label": "free",
+                "models": byok_models,
+                "recommended_model": byok_models[0] if byok_models else None,
             },
             "managed": {
                 "available": bool(self.managed_key and self.managed_provider),

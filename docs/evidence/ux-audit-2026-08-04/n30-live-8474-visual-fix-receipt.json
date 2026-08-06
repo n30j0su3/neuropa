@@ -1,0 +1,90 @@
+{
+  "schema": "neuropa/n30-live-visual-fix-receipt/v1",
+  "generated_at": "2026-08-04T19:51:29-05:00",
+  "updated_at": "2026-08-04T20:05:34-05:00",
+  "runtime": {
+    "url": "http://192.168.1.21:8474/",
+    "bind": "0.0.0.0:8474",
+    "lan_cidr": "192.168.1.0/24",
+    "health": "PASS",
+    "profile_endpoint_direct_lan_status": 200,
+    "master_token_endpoint_lan_status": 403,
+    "access_policy": "direct inside validated trusted CIDR; one-time pairing preserved as explicit --pairing opt-in"
+  },
+  "root_causes": [
+    {
+      "id": "aside-zero-width",
+      "cause": "When the primary rail was display:none, CSS grid auto-placed .stage into the zero-width first column.",
+      "fix": "Explicit stage grid column plus a one-column collapsed shell."
+    },
+    {
+      "id": "memory-fixed-grid",
+      "cause": "Memory nodes used fixed row/column coordinates and rendered technical source labels beside claims.",
+      "fix": "Deterministic force layout with collision separation, source dots, outward claim labels, node drag, canvas pan and zoom."
+    },
+    {
+      "id": "stale-live-backend",
+      "cause": "The long-running :8474 process predated the new backend routes, so Profile, Wiki, Skills, MCP and selective export returned 404 while the static file was newer.",
+      "fix": "Restarted :8474 through the canonical `neuropa --lan` CLI with the existing LAN CIDR; direct trusted-LAN access is the default and one-time pairing remains opt-in."
+    }
+  ],
+  "browser_qa": [
+    {
+      "viewport": "desktop",
+      "size": [1600, 900],
+      "aside_collapse_reopen": "PASS",
+      "stage_width_after_collapse": 1600,
+      "memory": {"nodes": 10, "edges": 5, "labels": 5, "technical_labels": 0, "label_overlaps": 0, "node_drag": "PASS"},
+      "profile_visible": true,
+      "selective_export_visible": true,
+      "skills_mcp_visible": true,
+      "artifacts": 3,
+      "artifact_canvas_visible": true,
+      "controls_under_44px": 0,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0
+    },
+    {
+      "viewport": "tablet",
+      "size": [768, 1024],
+      "aside_collapse_reopen": "PASS",
+      "stage_width_after_collapse": 768,
+      "memory": {"nodes": 10, "edges": 5, "labels": 5, "technical_labels": 0, "label_overlaps": 0},
+      "profile_visible": true,
+      "selective_export_visible": true,
+      "skills_mcp_visible": true,
+      "artifacts": 3,
+      "artifact_canvas_visible": true,
+      "controls_under_44px": 0,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0
+    },
+    {
+      "viewport": "mobile",
+      "size": [480, 900],
+      "bottom_navigation": "PASS",
+      "memory": {"nodes": 10, "edges": 5, "labels": 5, "technical_labels": 0, "label_overlaps": 0},
+      "profile_visible": true,
+      "selective_export_visible": true,
+      "skills_mcp_visible": true,
+      "artifacts": 3,
+      "artifact_canvas_visible": true,
+      "controls_under_44px": 0,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0
+    }
+  ],
+  "automated_verification": {
+    "compileall": "PASS",
+    "javascript_syntax": "PASS",
+    "pytest": {"status": "PASS", "passed": 123, "warnings": 1},
+    "git_diff_check": "PASS"
+  },
+  "verdict": "PASS_FOR_N30_HUMAN_GATE"
+}

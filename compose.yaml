@@ -1,0 +1,16 @@
+services:
+  neuropa:
+    build: .
+    ports:
+      - "127.0.0.1:8474:8474"
+    environment:
+      NEUROPA_DATA_DIR: /data
+      NEUROPA_BYOK_KEY: ${NEUROPA_BYOK_KEY:-}
+      NEUROPA_BYOK_PROVIDER: ${NEUROPA_BYOK_PROVIDER:-https://openrouter.ai/api/v1}
+      NEUROPA_BYOK_MODELS: ${NEUROPA_BYOK_MODELS:-}
+    volumes:
+      - neuropa-data:/data
+    restart: unless-stopped
+
+volumes:
+  neuropa-data:

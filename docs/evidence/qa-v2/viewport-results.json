@@ -110,7 +110,14 @@
         {
           "tag": "BUTTON",
           "id": "",
-          "label": "Nueva sesiónClaridad · 1 ago 2026, 3:55",
+          "label": "Nueva sesiónClaridad · 3 ago 2026, 12:43",
+          "width": 255,
+          "height": 60.46875
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "label": "Nueva sesiónClaridad · 1 ago 2026, 4:38",
           "width": 255,
           "height": 60.46875
         },
@@ -137,24 +144,31 @@
         },
         {
           "tag": "BUTTON",
-          "id": "model-chip",
-          "label": "Modelo: OpenCode gratuito",
-          "width": 181.3125,
-          "height": 44
+          "id": "provider-control",
+          "label": "ProviderOpenCode · gratuito",
+          "width": 218.5,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "mode-chip",
-          "label": "Modo: Claridad",
-          "width": 110.078125,
-          "height": 44
+          "id": "model-control",
+          "label": "Modeloopencode/deepseek-v4-flash-free",
+          "width": 218.5,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "context-chip",
-          "label": "Contexto: Esta sesión",
-          "width": 144.046875,
-          "height": 44
+          "id": "mode-control",
+          "label": "ModoClaridad",
+          "width": 218.5,
+          "height": 80.78125
+        },
+        {
+          "tag": "BUTTON",
+          "id": "context-control",
+          "label": "ContextoEsta sesión",
+          "width": 218.5,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
@@ -280,24 +294,31 @@
         },
         {
           "tag": "BUTTON",
-          "id": "model-chip",
-          "label": "Modelo: OpenCode gratuito",
-          "width": 181.3125,
-          "height": 44
+          "id": "provider-control",
+          "label": "ProviderOpenCode · gratuito",
+          "width": 146.140625,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "mode-chip",
-          "label": "Modo: Claridad",
-          "width": 110.078125,
-          "height": 44
+          "id": "model-control",
+          "label": "Modeloopencode/deepseek-v4-flash-free",
+          "width": 146.140625,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "context-chip",
-          "label": "Contexto: Esta sesión",
-          "width": 144.046875,
-          "height": 44
+          "id": "mode-control",
+          "label": "ModoClaridad",
+          "width": 146.140625,
+          "height": 80.78125
+        },
+        {
+          "tag": "BUTTON",
+          "id": "context-control",
+          "label": "ContextoEsta sesión",
+          "width": 146.140625,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
@@ -395,24 +416,31 @@
         },
         {
           "tag": "BUTTON",
-          "id": "model-chip",
-          "label": "Modelo: OpenCode gratuito",
-          "width": 140.65625,
-          "height": 44
+          "id": "provider-control",
+          "label": "ProviderOpenCode · gratuito",
+          "width": 213,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "mode-chip",
-          "label": "Modo: Claridad",
-          "width": 140.671875,
-          "height": 44
+          "id": "model-control",
+          "label": "Modeloopencode/deepseek-v4-flash-free",
+          "width": 213,
+          "height": 80.78125
         },
         {
           "tag": "BUTTON",
-          "id": "context-chip",
-          "label": "Contexto: Esta sesión",
-          "width": 140.671875,
-          "height": 44
+          "id": "mode-control",
+          "label": "ModoClaridad",
+          "width": 213,
+          "height": 57.984375
+        },
+        {
+          "tag": "BUTTON",
+          "id": "context-control",
+          "label": "ContextoEsta sesión",
+          "width": 213,
+          "height": 57.984375
         },
         {
           "tag": "BUTTON",

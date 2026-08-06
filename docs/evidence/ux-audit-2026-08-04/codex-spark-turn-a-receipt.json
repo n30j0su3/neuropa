@@ -1,0 +1,133 @@
+{
+  "executor": {
+    "requested_model": "gpt-5.3-codex-spark via OpenAI Codex",
+    "zero_trust_reviewer": "gpt-5.6-terra via OpenAI Codex",
+    "delegation_failure_disclosure": {
+      "batch": "deleg_ba65d2b2",
+      "verdict": "INFRA_FAILURE",
+      "reason": "deepseek-v4-flash returned HTTP 403 at provider preflight because China-hosting opt-in is unapproved; no worker audit output was used."
+    }
+  },
+  "timestamps": {
+    "review_completed_at": "2026-08-04T16:45:31-05:00"
+  },
+  "files_changed_and_hashes": [
+    {
+      "path": "neuropa/api/app.py",
+      "baseline_sha256": "6da8cc2f84b7586f842975e63d9fbc42b20e854249c1fa96230a3ab046b5fdb3",
+      "final_sha256": "55b4c8574f1ea134acabb27b80f85a4219cf51c58ae14607dde8e6deea18cd10"
+    },
+    {
+      "path": "neuropa/frontend/index.html",
+      "baseline_sha256": "030ddc1fef8ae68bc42ab60e8d44ec5ca2a4484f4e9d9b7230badfdac0abed9a",
+      "final_sha256": "ef53464f26a76f9f7c3f3d0c16aa65c35e07442a5a1764fe57fa00c1f06d79f6"
+    },
+    {
+      "path": "neuropa/services/harness.py",
+      "baseline_sha256": "5d144cd3ccc1cbde4f9375a9767a7fd1eedf01e2afe93c80fecbb684207f7ac9",
+      "final_sha256": "19b5f3582136ad681d78cd1949bc9bcb817b8bf53a3238f788ac9294b43cec06"
+    },
+    {
+      "path": "tests/test_frontend_harness_contract.py",
+      "baseline_sha256": "ce0f4a70947a0596e93721c12d48d5afb8b50f418fa528eade8972fbe851c7b2",
+      "final_sha256": "4e2c8575f034738e39b3888365c8c486b8867714e7ac0ee002f7a27d749bf7a7"
+    },
+    {
+      "path": "tests/test_frontend_ux_gaps.py",
+      "baseline_sha256": "a70d5b16dd26b8f6578a4a72dcf7beb14ad177f709ad6b7173dd9359f6df60ca",
+      "final_sha256": "f88fdf1c23fac7f0498d3d6460f2e19e6f787ab9f0067d20f1f034923a6012ac"
+    },
+    {
+      "path": "tests/test_harness_p0.py",
+      "baseline_sha256": "617582f5891634824a7ce03e402e02b23e9c90f9738801b2a51c4ba3f156a31c",
+      "final_sha256": "259aecce5706c763c56c182e4423e3d4bb912e4c47d2ed65ef20e31ce4b9a270"
+    },
+    {
+      "path": "tests/test_memory_graph_frontend.py",
+      "baseline_sha256": "46895445f123787001fa041a77a25dd7776d794902362c70b13c23be6128c260",
+      "final_sha256": "4aa6b2bcc45172166905288e6b06c5ca2c674345769b6241f8a9c2673e4987ed"
+    }
+  ],
+  "tests_added_or_updated": [
+    "tests/test_harness_p0.py::test_send_message_normalizes_server_usage_duration",
+    "tests/test_frontend_ux_gaps.py::test_primary_rail_toggle_and_session_toolbar_contract",
+    "tests/test_frontend_ux_gaps.py::test_composer_processing_and_usage_contract",
+    "tests/test_frontend_ux_gaps.py::test_session_transcript_export_is_not_artifact_creation",
+    "tests/test_frontend_ux_gaps.py::test_control_option_focus_returns_to_new_trigger_after_rerender"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m compileall -q neuropa tests",
+      "result": "PASS"
+    },
+    {
+      "command": "uv run pytest -q --tb=short",
+      "result": "PASS: 92 passed in 5.33s; 1 pre-existing Starlette TestClient/httpx deprecation warning"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "browser_matrix": {
+    "temporary_runtime": "http://127.0.0.1:8586 (isolated data dir; human runtime :8474 was not modified)",
+    "desktop_1600x1000": {
+      "horizontal_overflow": false,
+      "primary_rail_collapse": {
+        "grid_template_columns": "0px 1600px",
+        "navigation_width": 0
+      },
+      "composer_bottom": 1000,
+      "session_export_enabled": true
+    },
+    "tablet_768x1000": {
+      "horizontal_overflow": false,
+      "primary_rail_collapse": {
+        "grid_template_columns": "0px 768px",
+        "navigation_width": 0
+      },
+      "composer_bottom": 1000,
+      "session_export_enabled": true
+    },
+    "mobile_480x1000": {
+      "horizontal_overflow": false,
+      "composer_bottom": 934,
+      "session_export_enabled": true
+    },
+    "interaction_assertions": {
+      "provider_popover_opens": true,
+      "option_selection_restores_focus_to": "provider-control",
+      "session_rail_open": {
+        "pointer_events": "auto"
+      },
+      "session_rail_close": {
+        "hidden": true,
+        "display": "none",
+        "pointer_events": "none"
+      },
+      "session_transcript_download": "session-Nueva-sesi-n.json"
+    }
+  },
+  "runtime_errors": {
+    "console_or_page_errors": 0,
+    "failed_http_requests": 0
+  },
+  "artifact_session_count_assertion": {
+    "sessions": 1,
+    "artifacts_before_transcript_export": 0,
+    "artifacts_after_transcript_export": 0,
+    "result": "PASS: export is session-scoped and does not create an artifact"
+  },
+  "forbidden_file_comparison": {
+    "neuropa/cli.py_unchanged_from_HEAD": true,
+    "neuropa/providers_unchanged_from_HEAD": true,
+    "neuropa/domain_unchanged_from_HEAD": true,
+    "neuropa/memory_unchanged_from_HEAD": true,
+    "lan_auth_patch_restored_to_baseline": true
+  },
+  "known_residuals": [
+    "Starlette TestClient/httpx deprecation warning remains; no runtime failure.",
+    "Existing non-JSON evidence-file mutations were found in the dirty worktree. They are outside Turn A source behavior and require separate scope disposition; they were not used as proof here."
+  ],
+  "verdict": "PASS_FOR_HERMES_REVIEW"
+}

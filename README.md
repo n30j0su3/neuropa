@@ -13,7 +13,7 @@ No hace claims clínicos, no diagnostica y no sustituye atención profesional. L
 ## Quick start sin conocimientos técnicos
 
 ```bash
-git clone https://github.com/FreakingJSON/neuropa.git
+git clone https://github.com/n30j0su3/neuropa.git
 cd neuropa
 scripts/install.sh
 scripts/run-neuropa.sh
@@ -21,7 +21,7 @@ scripts/run-neuropa.sh
 
 Después abre `http://127.0.0.1:8474`. Para revisar sin cambiar nada: `scripts/install.sh --check`. Para automatización explícita: `scripts/install.sh --yes`.
 
-Guía bilingüe: [docs/SETUP.md](docs/SETUP.md).
+Guía bilingüe: [docs/SETUP.md](docs/SETUP.md). Manual de uso: [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md). Prompts iniciales: [docs/PROMPTS-INICIALES.md](docs/PROMPTS-INICIALES.md).
 
 ## Uso diario
 
@@ -31,6 +31,9 @@ scripts/run-neuropa.sh
 
 # LAN temporal en una red de confianza
 scripts/run-neuropa.sh --lan --port 8474
+
+# Opcional: exigir emparejamiento de un solo uso
+scripts/run-neuropa.sh --lan --pairing --port 8474
 
 # Estado y exportación
 uv run neuropa --status

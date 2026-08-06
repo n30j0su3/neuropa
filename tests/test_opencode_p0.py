@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from neuropa.providers.opencode_cli import OpenCodeCLI, parse_jsonl
+from neuropa.providers.opencode_cli import DEFAULT_MODEL, OpenCodeCLI, parse_jsonl
 from neuropa.providers.router import ProviderRouter
 
 
@@ -54,3 +54,7 @@ def test_legacy_status_model_never_returns_model_absent_from_catalog():
     assert state["providers"]["opencode_free"]["model"] is None
     assert state["providers"]["opencode_free"]["catalog_known"] is True
     assert state["providers"]["local"]["catalog_known"] is False
+
+
+def test_default_free_model_prefers_benchmarked_faster_lane():
+    assert DEFAULT_MODEL == "opencode/laguna-s-2.1-free"

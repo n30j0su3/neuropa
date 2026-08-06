@@ -34,7 +34,8 @@ class Database:
         self.path = Path(path) if path else default_data_dir() / "neuropa.db"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
-        self._supersede_lock = threading.RLock()
+        self._lock = threading.RLock()
+        self._supersede_lock = self._lock
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
@@ -58,9 +59,10 @@ class Database:
         self.conn.close()
 
     def create(self, obj: T, *, commit: bool = True) -> T:
-        self.conn.execute("INSERT INTO entities VALUES (?, ?, ?, ?, ?, ?)", (obj.id, obj.entity_type, json.dumps(obj.to_dict()), obj.created_at, obj.updated_at, obj.deleted_at))
-        if commit:
-            self.conn.commit()
+        with self._lock:
+            self.conn.execute("INSERT INTO entities VALUES (?, ?, ?, ?, ?, ?)", (obj.id, obj.entity_type, json.dumps(obj.to_dict()), obj.created_at, obj.updated_at, obj.deleted_at))
+            if commit:
+                self.conn.commit()
         return obj
 
     def get(self, entity_type: str, obj_id: str, include_deleted: bool = False) -> Entity | None:
@@ -68,7 +70,8 @@ class Database:
         args: list[Any] = [entity_type, obj_id]
         if not include_deleted:
             q += " AND deleted_at IS NULL"
-        row = self.conn.execute(q, args).fetchone()
+        with self._lock:
+            row = self.conn.execute(q, args).fetchone()
         if not row:
             return None
         return self._decode(row[0])
@@ -79,40 +82,45 @@ class Database:
         if not include_deleted:
             q += " AND deleted_at IS NULL"
         q += " ORDER BY created_at DESC"
-        return [self._decode(row[0]) for row in self.conn.execute(q, args).fetchall()]
+        with self._lock:
+            rows = self.conn.execute(q, args).fetchall()
+        return [self._decode(row[0]) for row in rows]
 
     def update(self, obj: T, **changes: Any) -> T:
-        existing = self.get(obj.entity_type, obj.id, include_deleted=True)
-        if existing is None:
-            raise KeyError(obj.id)
-        if isinstance(existing, InboxItem):
-            changes.pop("raw_text", None)
-        data = existing.to_dict()
-        data.update(changes)
-        data["updated_at"] = now_iso()
-        cls = type(existing)
-        data.pop("entity_type", None)
-        updated = cls(**data)
-        self.conn.execute("UPDATE entities SET payload=?, updated_at=?, deleted_at=? WHERE id=?", (json.dumps(updated.to_dict()), updated.updated_at, updated.deleted_at, updated.id))
-        self.conn.commit()
+        with self._lock:
+            existing = self.get(obj.entity_type, obj.id, include_deleted=True)
+            if existing is None:
+                raise KeyError(obj.id)
+            if isinstance(existing, InboxItem):
+                changes.pop("raw_text", None)
+            data = existing.to_dict()
+            data.update(changes)
+            data["updated_at"] = now_iso()
+            cls = type(existing)
+            data.pop("entity_type", None)
+            updated = cls(**data)
+            self.conn.execute("UPDATE entities SET payload=?, updated_at=?, deleted_at=? WHERE id=?", (json.dumps(updated.to_dict()), updated.updated_at, updated.deleted_at, updated.id))
+            self.conn.commit()
         return updated
 
     def replace_entities(self, objects: list[Entity]) -> None:
         """Atomically replace all entities after the caller validates every row."""
-        try:
-            self.conn.execute("BEGIN")
-            self.conn.execute("DELETE FROM entities")
-            for obj in objects:
-                self.create(obj, commit=False)
-            self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
+        with self._lock:
+            try:
+                self.conn.execute("BEGIN")
+                self.conn.execute("DELETE FROM entities")
+                for obj in objects:
+                    self.create(obj, commit=False)
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
 
     def soft_delete(self, entity_type: str, obj_id: str) -> bool:
         stamp = now_iso()
-        cur = self.conn.execute("UPDATE entities SET deleted_at=?, updated_at=? WHERE entity_type=? AND id=? AND deleted_at IS NULL", (stamp, stamp, entity_type, obj_id))
-        self.conn.commit()
+        with self._lock:
+            cur = self.conn.execute("UPDATE entities SET deleted_at=?, updated_at=? WHERE entity_type=? AND id=? AND deleted_at IS NULL", (stamp, stamp, entity_type, obj_id))
+            self.conn.commit()
         return cur.rowcount > 0
 
     def supersede(self, old_id: str, new_claim: MemoryClaim) -> MemoryClaim:

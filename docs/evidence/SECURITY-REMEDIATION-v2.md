@@ -38,3 +38,12 @@
 - Signed desktop packages and platform-native installer.
 
 The public OSS core remains functional without the private SaaS repository. No telemetry was added.
+
+## Product-policy update — 2026-08-04
+
+N30 removed mandatory pairing from the trusted-LAN default because it was an unnecessary
+local usability barrier. `--lan` now grants direct access only to clients inside the
+validated private `/24+` or `/64+` CIDR; `/api/token` remains loopback-only and the master
+bearer is never returned to LAN clients. The one-time gate remains available as the explicit
+opt-in `--lan --pairing`. Regression coverage: direct trusted LAN 200 without cookie,
+pairing opt-in 401 before pairing, one-time code replay 403, and public/broad CIDRs rejected.

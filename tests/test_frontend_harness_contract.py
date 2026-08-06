@@ -70,7 +70,7 @@ def test_harness_has_shared_modal_accessibility_contract():
 
 def test_harness_is_standalone_and_honest_about_roadmap():
     assert "https://" not in HTML
-    assert "http://" not in HTML
+    assert "http://" not in HTML.replace("http://www.w3.org/2000/svg", "")
     assert "Roadmap" in HTML
     assert "OpenCode" in HTML
     assert "Ollama" in HTML

@@ -1,7 +1,11 @@
 from pathlib import Path
 import json
 
-from neuropa.domain import Database, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition
+import pytest
+from fastapi.testclient import TestClient
+
+from neuropa.api.app import create_app
+from neuropa.domain import Artifact, Database, Workspace, ChatSession, ChatMessage, AgentMode, ToolDefinition
 from neuropa.services import HarnessService
 from neuropa.providers import NoAIProviderAvailable
 
@@ -122,6 +126,28 @@ def test_omitted_request_scope_preserves_session_scope_and_claims(tmp_path):
     db.close()
 
 
+
+
+def test_send_message_normalizes_and_persists_usage_metrics(tmp_path):
+    class TimingRouter(FakeRouter):
+        def generate(self, messages, **kwargs):
+            return {
+                "text": "respuesta real",
+                "provider_used": "fake",
+                "model": "fake-1",
+                "usage": {"output_tokens": 3, "input_tokens": 5, "elapsed": 0.42},
+            }
+
+    db = Database(tmp_path / "usage.db")
+    svc = HarnessService(db, TimingRouter(), tmp_path)
+    session = svc.create_session()
+    answer = svc.send_message(session.id, "hola")
+    assert answer.usage is not None
+    assert answer.usage["input_tokens"] == 5
+    assert answer.usage["output_tokens"] == 3
+    assert float(answer.usage["elapsed"]) >= 0.0
+    assert "output_tokens_per_sec" in answer.usage
+    db.close()
 def test_unknown_or_unavailable_catalog_does_not_reject_model(tmp_path):
     import pytest
 
@@ -147,4 +173,128 @@ def test_unknown_or_unavailable_catalog_does_not_reject_model(tmp_path):
     session = svc.create_session()
     with pytest.raises(ValueError):
         svc.send_message(session.id, "x", provider="local", model="not-listed")
+    db.close()
+
+
+def test__title_from_first_message_basic():
+    """G2 RED: pure helper produces deterministic titles."""
+    from neuropa.services.harness import _title_from_first_message
+    assert _title_from_first_message("Necesito organizar el proyecto") == "Necesito organizar el proyecto"
+    assert _title_from_first_message("  espacios  ") == "espacios"
+    assert _title_from_first_message("") == "Nueva sesión"
+    assert _title_from_first_message("   ") == "Nueva sesión"
+
+
+def test__title_from_first_message_truncates_at_word_boundary():
+    from neuropa.services.harness import _title_from_first_message
+    long = "palabra " * 20  # 160 chars
+    title = _title_from_first_message(long, limit=60)
+    assert len(title) <= 60
+    assert not title.endswith(" ")
+
+
+def test_first_message_renames_default_session(tmp_path):
+    """G2 RED: default-titled session gets a deterministic title from first user message."""
+    db = Database(tmp_path / "title.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+    session = svc.create_session()
+    assert session.title == "Nueva sesión"
+    svc.send_message(session.id, "Necesito organizar el envío de Maaji")
+    stored = db.get("chat_session", session.id)
+    assert stored.title == "Necesito organizar el envío de Maaji"
+    assert stored.title != "Nueva sesión"
+    db.close()
+
+
+def test_custom_title_survives_send_message(tmp_path):
+    """G2 RED: a session with a custom title is never auto-renamed."""
+    db = Database(tmp_path / "custom.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+    session = svc.create_session(title="Mi proyecto especial")
+    svc.send_message(session.id, "algo nuevo aquí")
+    stored = db.get("chat_session", session.id)
+    assert stored.title == "Mi proyecto especial"
+    db.close()
+
+
+def test_second_message_does_not_retitle(tmp_path):
+    """G2 RED: second user message does not change the title again."""
+    db = Database(tmp_path / "second.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+    session = svc.create_session()
+    svc.send_message(session.id, "primera idea")
+    title_after_first = db.get("chat_session", session.id).title
+    svc.send_message(session.id, "segunda idea completamente diferente")
+    title_after_second = db.get("chat_session", session.id).title
+    assert title_after_first == title_after_second == "primera idea"
+    db.close()
+
+
+def test_read_artifact_returns_content(tmp_path):
+    """G4 RED: read_artifact returns existing markdown content."""
+    db = Database(tmp_path / "read_art.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+    session = svc.create_session()
+    answer = svc.send_message(session.id, "contenido de prueba")
+    artifact = svc.create_artifact(answer.id)
+    result = svc.read_artifact(artifact.id)
+    assert result["content"] == "respuesta real"
+    assert result["id"] == artifact.id
+    db.close()
+
+
+def test_read_artifact_rejects_missing(tmp_path):
+    """G4 RED: read_artifact raises KeyError for missing artifact."""
+    import pytest
+    db = Database(tmp_path / "read_miss.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+    with pytest.raises(KeyError):
+        svc.read_artifact("nonexistent-id")
+    db.close()
+
+
+def test_read_artifact_rejects_traversal_missing_file_and_non_utf8(tmp_path):
+    db = Database(tmp_path / "read_safety.db")
+    svc = HarnessService(db, FakeRouter(), tmp_path)
+
+    traversal = db.create(Artifact(type="markdown", path="../outside.md", title="outside"))
+    with pytest.raises(ValueError, match="escapes root"):
+        svc.read_artifact(traversal.id)
+
+    missing = db.create(Artifact(type="markdown", path="artifacts/missing.md", title="missing"))
+    with pytest.raises(FileNotFoundError):
+        svc.read_artifact(missing.id)
+
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(exist_ok=True)
+    (artifacts / "binary.md").write_bytes(b"\xff\xfe")
+    non_utf8 = db.create(Artifact(type="markdown", path="artifacts/binary.md", title="binary"))
+    with pytest.raises(ValueError, match="UTF-8"):
+        svc.read_artifact(non_utf8.id)
+    db.close()
+
+
+def test_artifact_get_is_authenticated_and_returns_exact_escaped_source(tmp_path, monkeypatch):
+    data_dir = tmp_path / "api-data"
+    monkeypatch.setenv("NEUROPA_DATA_DIR", str(data_dir))
+    db = Database(tmp_path / "artifact_api.db")
+    svc = HarnessService(db, FakeRouter(), data_dir)
+    session = svc.create_session(title="Sesión fuente")
+    answer = svc.send_message(session.id, "guarda esto")
+    artifact = svc.create_artifact(answer.id)
+    artifact_path = data_dir / artifact.path
+    artifact_path.write_text("<script>window.__artifact_xss=1</script>", encoding="utf-8")
+
+    client = TestClient(create_app(db, router=FakeRouter(), harness=svc))
+    assert client.get(f"/api/artifacts/{artifact.id}").status_code == 401
+    token = (data_dir / "token").read_text(encoding="utf-8").strip()
+    response = client.get(
+        f"/api/artifacts/{artifact.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["content"] == "<script>window.__artifact_xss=1</script>"
+    assert payload["source_session"] == "Sesión fuente"
+    assert payload["checksum"] == artifact.blob_ref
     db.close()

@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
+DEFAULT_MODEL = "opencode/laguna-s-2.1-free"
 
 
 class OpenCodeError(RuntimeError):
@@ -94,4 +94,9 @@ class OpenCodeCLI:
         if result.returncode != 0:
             raise OpenCodeError("OpenCode no pudo completar la solicitud")
         parsed = parse_jsonl(result.stdout)
+        if not parsed["content"].strip():
+            # Agent gave up without output (e.g. tool permissions auto-rejected in
+            # --pure mode). Surface as provider failure so the router can fall back
+            # instead of storing an empty assistant bubble.
+            raise OpenCodeError("OpenCode devolvió una respuesta vacía")
         return {"text": parsed["content"], "content": parsed["content"], "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": parsed["session_id"], "usage": parsed["usage"]}

@@ -4,7 +4,7 @@ This is the **no-tech path** for the public, local-first NeuroPA AI Workspace. /
 
 ## Quick start / Inicio rápido
 
-Requirements / Requisitos: Linux or macOS, an internet connection only for the first dependency download, and a terminal.
+Requirements / Requisitos: Linux, macOS, Windows PowerShell, Docker, or Android / Termux; internet is only required for the first dependency download and remote AI providers.
 
 ```bash
 git clone https://github.com/FreakingJSON/neuropa.git
@@ -16,6 +16,46 @@ scripts/run-neuropa.sh
 Open `http://127.0.0.1:8474`. Your data stays on this computer by default. / Abre esa dirección. Tus datos permanecen en este equipo por defecto.
 
 For automation, use `scripts/install.sh --yes`. `--check` only inspects prerequisites and makes no changes. / Para automatización usa `--yes`; `--check` sólo revisa.
+
+## Platform paths / Rutas por plataforma
+
+### Linux and macOS
+
+Use the quick-start commands above. On macOS, install Git and `uv` first if they are not already available. Data uses the platform-native directory (`~/.local/share/neuropa` on Linux, `~/Library/Application Support/neuropa` on macOS).
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/FreakingJSON/neuropa.git
+cd neuropa
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File scripts\run-neuropa.ps1
+```
+
+The PowerShell installer fails closed when `uv` or Git is missing and asks before downloading dependencies. Use `-Check` for read-only prerequisite inspection or `-Yes` for explicit automation. LAN remains opt-in: `scripts\run-neuropa.ps1 -Lan -LanCidr 192.168.1.0/24`.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+Open `http://127.0.0.1:8474`. The compose file publishes NeuroPA on host loopback only and persists data in the named `neuropa-data` volume. Stop with `docker compose down`; add `-v` only when you intentionally want to delete that volume.
+
+### Android / Termux
+
+```bash
+pkg update
+pkg install python git
+git clone https://github.com/FreakingJSON/neuropa.git
+cd neuropa
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+neuropa --port 8474
+```
+
+Open `http://127.0.0.1:8474` in the Android browser. Android / Termux is a local web runtime, not a native APK. Keep Termux running while using NeuroPA.
 
 ## Local-only and OpenCode / Sólo local y OpenCode
 
@@ -31,11 +71,22 @@ Only on a trusted network:
 scripts/run-neuropa.sh --lan --port 8474
 ```
 
-LAN mode is explicit and temporary. It accepts only a private narrow network (IPv4 `/24` or narrower, IPv6 `/64` or narrower), generates a one-time pairing code, and puts that code only in the URL fragment plus a terminal line. The fragment is not sent in HTTP requests. Stop it with `Ctrl+C`; return to local-only mode by omitting `--lan`. Do not expose it to the internet or an untrusted Wi-Fi network. / El modo LAN es explícito y temporal; sólo acepta redes privadas estrechas y genera un código de un solo uso.
+LAN mode is explicit and temporary. It accepts only a private narrow network (IPv4 `/24` or narrower, IPv6 `/64` or narrower) and devices in that trusted network enter directly by default. Add `--pairing` only when you explicitly want the preserved one-time pairing gate; its code stays in the URL fragment and terminal. Stop with `Ctrl+C`; return to loopback-only mode by omitting `--lan`. Never expose LAN mode to the internet or untrusted Wi-Fi. / El modo LAN es explícito y temporal; en la red privada autorizada entra directamente por defecto. `--pairing` conserva el emparejamiento como opción.
 
 ## Privacy, egress, and data / Privacidad, salida y datos
 
 Default storage is `~/.local/share/neuropa/` (or the platform equivalent). `NEUROPA_DATA_DIR` can choose another directory. No hidden telemetry is required. If you connect an external provider or OpenCode, prompts and files may leave the machine according to that provider's configuration and policy; local-only operation is the safe default. / Si conectas un proveedor externo, los datos pueden salir según su configuración y política.
+
+### OpenRouter BYOK — free first
+
+NeuroPA accepts an OpenRouter key through the process environment; the key is never written to the SQLite workspace or included in exports:
+
+```bash
+export NEUROPA_BYOK_KEY='...'
+scripts/run-neuropa.sh
+```
+
+PowerShell: `$env:NEUROPA_BYOK_KEY='...'`. Docker: put `NEUROPA_BYOK_KEY=...` in a local `.env` file that is not committed. The default endpoint is `https://openrouter.ai/api/v1`; NeuroPA refreshes the eligible model catalog and places `openrouter/free` and zero-cost `:free` models first. Advanced overrides: `NEUROPA_BYOK_PROVIDER` for another OpenAI-compatible endpoint and comma-separated `NEUROPA_BYOK_MODELS` for explicit additional models. Remote prompts follow the selected provider's policy and limits.
 
 ## Backup and export / Copia y exportación
 
@@ -45,6 +96,8 @@ uv run neuropa --export backup.json
 ```
 
 Keep `backup.json` private. Back up the data directory too when you need a full local recovery. / Mantén privado el JSON y copia también el directorio de datos para una recuperación completa.
+
+From Workspace, **Exportar sesión** offers JSON, Markdown (`.md`), and a self-contained **SPA-HTML offline** transcript. The HTML needs no CDN or backend and includes local search plus author filtering. In Ajustes, **Importar backup JSON** validates the backup and requires explicit confirmation before atomically replacing the local workspace. Full backups also include the owner-editable `SOUL.md` and `AGENTS.md` identity layers; old backups without these fields remain compatible. Conversations remain sessions; this does not convert them into saved deliverables.
 
 ## Troubleshooting / Resolución de problemas
 

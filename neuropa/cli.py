@@ -87,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--export", nargs="?", const="-", metavar="ARCHIVO", help="Exporta los datos a JSON; sin ARCHIVO imprime en pantalla")
     parser.add_argument("--lan", action="store_true", help="Comparte temporalmente NeuroPA en tu red local de confianza")
     parser.add_argument("--lan-cidr", metavar="CIDR", help="Red autorizada, por ejemplo 192.168.1.0/24 (se detecta automáticamente con --lan)")
+    parser.add_argument("--pairing", action="store_true", help="Exige emparejamiento de un solo uso al compartir por LAN")
     return parser
 
 
@@ -115,6 +116,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not 1 <= args.port <= 65535:
         raise SystemExit("El puerto debe estar entre 1 y 65535")
+    if args.pairing and not args.lan:
+        raise SystemExit("--pairing requiere --lan")
 
     import uvicorn
     from neuropa.api.app import create_app
@@ -127,15 +130,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         address, detected_cidr = local_lan_address()
         cidr = args.lan_cidr or detected_cidr
         network = validate_lan_cidr(cidr)
-        pairing_code = generate_pairing_code()
         os.environ["NEUROPA_LAN_CIDR"] = str(network)
-        os.environ["NEUROPA_PAIRING_CODE"] = pairing_code
         host = "0.0.0.0"
         display_url = f"http://{address}:{args.port}"
-        browser_url = f"{display_url}#pair={pairing_code}"
         print(f"LAN temporal habilitada para {network}. Úsala sólo en una red de confianza.")
-        print(f"Enlace LAN de emparejamiento: {browser_url}")
-        print(f"Código de emparejamiento de un solo uso: {pairing_code}")
+        if args.pairing:
+            pairing_code = generate_pairing_code()
+            os.environ["NEUROPA_PAIRING_CODE"] = pairing_code
+            browser_url = f"{display_url}#pair={pairing_code}"
+            print(f"Enlace LAN de emparejamiento: {browser_url}")
+            print(f"Código de emparejamiento de un solo uso: {pairing_code}")
+        else:
+            os.environ.pop("NEUROPA_PAIRING_CODE", None)
+            print("Acceso directo habilitado para dispositivos dentro de la red autorizada.")
     threading.Timer(0.5, webbrowser.open, args=(browser_url,)).start()
     print(f"NeuroPA está listo en {display_url}. Pulsa Ctrl+C para salir.")
     try:
