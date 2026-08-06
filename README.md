@@ -6,7 +6,7 @@
 
 ## Qué es
 
-NeuroPA es un workspace/harness de IA local-first: una base para capturar contexto, trabajar con memoria, ejecutar tareas y conservar el control de los datos. Incluye un módulo de funciones ejecutivas (captura, Today, Focus y Memory) para reducir fricción y recuperar continuidad.
+NeuroPA es **el espacio preconfigurado** para usar IA gratis, fácil y sin parte técnica. Open source (AGPL-3.0), local-first: tus sesiones, tu memoria y tus guardados viven en tu dispositivo. Elige entre IA gratuita (OpenCode), local (Ollama) o tu propia clave (OpenRouter) — sin cuenta, sin suscripción obligatoria y sin telemetría.
 
 No hace claims clínicos, no diagnostica y no sustituye atención profesional. La experiencia pública OSS está diseñada para funcionar completa localmente, sin cuenta ni SaaS obligatorio.
 
