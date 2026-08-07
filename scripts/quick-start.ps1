@@ -158,12 +158,37 @@ if (Has opencode -or (Has opencode-ai)) {
     }
 }
 
-# ── Step 7: Launch ──
+# ── Step 7: Crear acceso directo "NeuroPA fácil" en el Escritorio ──
+Write-Host ""
+Write-Host "  -- Creando acceso directo 'NeuroPA' en tu escritorio --" -ForegroundColor Cyan
+
+$DestDir = [Environment]::GetFolderPath('Desktop')
+if (-not (Test-Path $DestDir)) { $DestDir = $env:USERPROFILE }
+
+$EasyBat = Join-Path $RootDir 'scripts/neuropa-easy.bat'
+$UninstallBat = Join-Path $RootDir 'scripts/neuropa-uninstall.bat'
+
+# Copia neuropa-easy.bat al escritorio para doble-click
+if (Test-Path $EasyBat) {
+    $EasyShortcut = Join-Path $DestDir 'NeuroPA.bat'
+    Copy-Item $EasyBat $EasyShortcut -Force
+    Ok "Acceso directo creado: $EasyShortcut"
+} else {
+    Warn "No encontre $EasyBat"
+}
+
+# Ofrece crear acceso al desinstalador (sin forzar — el usuario decide)
+if (Test-Path $UninstallBat) {
+    Write-Host ""
+    Info "Desinstalador (cuando lo necesites): scripts/neuropa-uninstall.bat"
+}
+
 Write-Host ""
 Write-Host "  NeuroPA esta listo!" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Arrancar:  cd $RootDir ; uv run neuropa" -ForegroundColor DarkGray
-Write-Host "  URL:       http://127.0.0.1:8474" -ForegroundColor Cyan
+Write-Host "  Para arrancar: doble-click en 'NeuroPA.bat' de tu escritorio" -ForegroundColor DarkGray
+Write-Host "  O desde terminal:  cd $RootDir ; uv run neuropa" -ForegroundColor DarkGray
+Write-Host "  URL:               http://127.0.0.1:8474" -ForegroundColor Cyan
 Write-Host ""
 if (Confirm "Arrancar NeuroPA ahora?") {
     uv run neuropa

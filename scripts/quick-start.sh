@@ -165,10 +165,32 @@ else
 fi
 
 # ── Step 7: Arrancar ──
+printf "\n${CYAN}── Creando acceso directo 'NeuroPA' ──${NC}\n"
+DEST_DIR="$HOME/Desktop"
+[ -d "$DEST_DIR" ] || DEST_DIR="$HOME"
+EASY_SH="$ROOT_DIR/scripts/neuropa-easy.sh"
+UNINSTALL_SH="$ROOT_DIR/scripts/neuropa-uninstall.sh"
+
+if [ -f "$EASY_SH" ]; then
+  EASY_SHORTCUT="$DEST_DIR/NeuroPA.command"
+  cp "$EASY_SH" "$EASY_SHORTCUT" 2>/dev/null
+  chmod +x "$EASY_SHORTCUT" 2>/dev/null
+  ok "Acceso directo creado: $EASY_SHORTCUT (doble-click)"
+else
+  warn "No encontre $EASY_SH"
+fi
+
+if [ -f "$UNINSTALL_SH" ]; then
+  printf "\n"
+  info "Desinstalador (cuando lo necesites): scripts/neuropa-uninstall.sh"
+fi
+
 printf "\n${GREEN}╔══════════════════════════════════════════╗${NC}\n"
 printf "${GREEN}║   ¡NeuroPA está listo!                   ║${NC}\n"
 printf "${GREEN}╚══════════════════════════════════════════╝${NC}\n\n"
-printf "Para arrancar ahora:\n"
+printf "Para arrancar: doble-click en 'NeuroPA.command' de tu escritorio\n"
+printf "O desde terminal:  cd %s && uv run neuropa\n" "$ROOT_DIR"
+printf "URL:               ${CYAN}http://127.0.0.1:8474${NC}\n\n"
 printf "  cd %s\n" "$ROOT_DIR"
 printf "  uv run neuropa\n\n"
 printf "Se abrirá en: ${CYAN}http://127.0.0.1:8474${NC}\n\n"

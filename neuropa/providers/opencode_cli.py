@@ -71,10 +71,15 @@ class OpenCodeCLI:
             result = subprocess.run([self.executable, "models"], shell=False, capture_output=True, text=True, timeout=self.timeout)
         except (OSError, subprocess.TimeoutExpired):
             return self._models or []
-        models = []
+        models: list[str] = []
+        # OpenCode CLI output format: one model per line as "provider/model-id"
+        # Examples: "opencode/laguna-s-2.1-free", "opencode/big-pickle", "zai-coding-plan/glm-5.2"
         for line in result.stdout.splitlines():
-            candidate = line.strip().split()[0] if line.strip() else ""
-            if candidate.endswith("-free") or candidate == "big-pickle" or candidate.endswith("/big-pickle"):
+            candidate = line.strip()
+            if not candidate or candidate.startswith("#") or " " in candidate:
+                continue
+            # Accept everything from the free `opencode/` provider, plus legacy big-pickle
+            if candidate.startswith("opencode/") or candidate == "big-pickle":
                 if candidate not in models:
                     models.append(candidate)
         self._models, self._models_at = models, time.monotonic()

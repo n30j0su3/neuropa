@@ -41,14 +41,14 @@ Manual de uso: [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md). Prompts iniciales
 ## Uso diario
 
 ```bash
-# Local-only (por defecto)
+# Opción fácil — doble-click:
+#   Windows:    NeuroPA.bat     (creado en tu Escritorio al instalar)
+#   macOS/Linux: NeuroPA.command (creado en tu Escritorio al instalar)
+# Arranca NeuroPA y abre el navegador automáticamente.
+
+# Opción terminal
 scripts/run-neuropa.sh
-
-# LAN temporal en una red de confianza
 scripts/run-neuropa.sh --lan --port 8474
-
-# Opcional: exigir emparejamiento de un solo uso
-scripts/run-neuropa.sh --lan --pairing --port 8474
 
 # Estado y exportación
 uv run neuropa --status
@@ -58,7 +58,16 @@ uv run neuropa --export backup.json
 uv run neuropa --version
 ```
 
-Detén el proceso con `Ctrl+C`. Tus datos permanecen en tu equipo.
+Detén el proceso con `Ctrl+C` o usa el botón ⏹ Terminar NeuroPA dentro de la app. Tus datos permanecen en tu equipo.
+
+## Desinstalar (preserva tus datos)
+
+```bash
+# Windows:     doble-click en scripts/neuropa-uninstall.bat
+# macOS/Linux: bash scripts/neuropa-uninstall.sh
+```
+
+Borra el repo, el cache de Python (`uv cache`) y OpenCode CLI. **Tu memoria, skills e identidad NO se tocan** — quedan en `~/.local/share/neuropa/` (Linux/Mac) o `%LOCALAPPDATA%\neuropa` (Windows) para una reinstalación futura.
 
 ## Arquitectura pública / privada
 
