@@ -6,6 +6,15 @@
 
 $ErrorActionPreference = "Stop"
 
+# Allow native commands (git, uv, npm) to write to stderr without aborting.
+# Git sends progress ("Cloning into...") to stderr, which PowerShell treats as
+# a fatal error under Stop mode. This function runs a native command safely.
+function Run-Native($block) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $block } finally { $ErrorActionPreference = $prev }
+}
+
 Write-Host ""
 Write-Host "  NeuroPA — Instalador automatico" -ForegroundColor Cyan
 Write-Host "  Sistema: Windows ($env:PROCESSOR_ARCHITECTURE)" -ForegroundColor DarkGray
@@ -22,34 +31,41 @@ function Confirm($prompt) {
     return ($ans -eq "" -or $ans -eq "s" -or $ans -eq "S" -or $ans -eq "y" -or $ans -eq "Y")
 }
 
-# ── Step 1: Detect or clone ──
+# ── Step 1: Git (BEFORE clone — can't clone without it) ──
+Write-Host ""
+Write-Host "  -- Git --" -ForegroundColor Cyan
+if (Has git) { Ok "git detectado" }
+else {
+    Warn "git no detectado. Es necesario para descargar NeuroPA."
+    if (Has winget) {
+        if (Confirm "Instalar git con winget?") {
+            Run-Native { winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements }
+            # Refresh PATH for this session
+            $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+            if (Has git) { Ok "git instalado" } else { Fail "git no se detecto tras instalar. Reinicia PowerShell y vuelve a ejecutar." ; exit 1 }
+        } else { Fail "Sin git no puedo continuar. Instala desde https://git-scm.com" ; exit 1 }
+    } else { Fail "Instala git desde https://git-scm.com y vuelve a ejecutar." ; exit 1 }
+}
+
+# ── Step 2: Detect or clone ──
 $RootDir = $PSScriptRoot
 if (-not (Test-Path "$RootDir\pyproject.toml") -and -not (Has neuropa)) {
     Info "No estas dentro del repo de NeuroPA. Lo clonare en $HOME\neuropa"
     if (Confirm "Clonar NeuroPA desde GitHub?") {
-        git clone --depth 1 https://github.com/n30j0su3/neuropa.git "$HOME\neuropa" 2>$null
-        $RootDir = "$HOME\neuropa"
-        Ok "Repo clonado en $RootDir"
+        Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git "$HOME\neuropa" }
+        if (Test-Path "$HOME\neuropa\pyproject.toml") {
+            $RootDir = "$HOME\neuropa"
+            Ok "Repo clonado en $RootDir"
+        } else {
+            Fail "No pude clonar. Verifica tu conexion o instala git primero."
+            exit 1
+        }
     } else {
         Fail "Necesitas el repo. Clona manualmente: git clone https://github.com/n30j0su3/neuropa.git"
         exit 1
     }
 }
 Set-Location $RootDir
-
-# ── Step 2: Git ──
-Write-Host ""
-Write-Host "  -- Git --" -ForegroundColor Cyan
-if (Has git) { Ok "git detectado" }
-else {
-    Warn "git no detectado"
-    if (Has winget) {
-        if (Confirm "Instalar git con winget?") {
-            winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements 2>$null
-            Ok "git instalado"
-        }
-    } else { Fail "Instala git desde https://git-scm.com" }
-}
 
 # ── Step 3: Python ──
 Write-Host ""
