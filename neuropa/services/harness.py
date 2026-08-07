@@ -295,7 +295,37 @@ class HarnessService:
         if deliverables:
             summary["deliverables"] = deliverables
             self.db.update(message, process_summary=summary)
+        self._auto_extract_memory(content, message)
         return message
+
+    def _auto_extract_memory(self, user_content: str, assistant_message: ChatMessage) -> None:
+        """Extract memory claims from natural language 'recuerda que...' patterns.
+
+        The user should not need to know about the /api/memory/store endpoint.
+        If they say 'recuerda que X' or 'remember that X', we extract X and
+        persist it as a grounded claim with the session as source.
+        """
+        import re as _re
+        text = user_content.strip()
+        patterns = [
+            r"(?:recuerda\s+que|recordá\s+que|recuerde\s+que)\s+(.+)",
+            r"(?:remember\s+that)\s+(.+)",
+            r"(?:memoriz[ao]\s+(?:que\s+)?|guarda\s+(?:en\s+memoria\s+)?(?:que\s+)?)\s*(.+)",
+        ]
+        claim_text = None
+        for pat in patterns:
+            m = _re.search(pat, text, _re.IGNORECASE)
+            if m:
+                claim_text = m.group(1).strip().rstrip(".")
+                break
+        if not claim_text or len(claim_text) < 5:
+            return
+        try:
+            from neuropa.memory import MemoryClaimService
+            source_ref = f"sesión {assistant_message.session_id}"
+            MemoryClaimService(self.db).store_claim(claim_text=claim_text, source_type="chat", source_ref=source_ref, confidence=0.85)
+        except Exception:
+            pass
 
     def _capture_workspace_deliverables(self, workspace_dir: Path, before: dict[str, float], message: ChatMessage) -> list[dict[str, str]]:
         """Register files the provider wrote into the session workspace as

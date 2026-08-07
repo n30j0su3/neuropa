@@ -120,19 +120,41 @@ uv run neuropa --version 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) { Ok "NeuroPA CLI listo" }
 else { Fail "Algo fallo"; exit 1 }
 
-# ── Step 6: OpenCode (opcional) ──
+# ── Step 6: OpenCode (IA gratuita — LA forma fácil de empezar) ──
 Write-Host ""
-Write-Host "  -- OpenCode (IA gratuita) --" -ForegroundColor Cyan
-if (Has opencode -or (Has opencode-ai)) { Ok "OpenCode detectado" }
-else {
+Write-Host "  -- IA gratuita (OpenCode) --" -ForegroundColor Cyan
+Write-Host "  Sin esto, NeuroPA no puede responder mensajes." -ForegroundColor DarkGray
+Write-Host ""
+if (Has opencode -or (Has opencode-ai)) {
+    Ok "OpenCode detectado — IA lista"
+} else {
+    # Need npm first
+    if (-not (Has npm)) {
+        Warn "Node.js/npm no detectado. Necesario para OpenCode (IA gratuita)."
+        if (Has winget) {
+            if (Confirm "Instalar Node.js con winget? (necesario para IA gratuita)") {
+                Run-Native { winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements }
+                $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+                if (Has npm) { Ok "Node.js instalado" } else { Fail "Node.js no se detecto. Instala desde https://nodejs.org" }
+            } else {
+                Warn "Sin Node.js no hay IA gratuita. Instala desde https://nodejs.org despues."
+            }
+        } else {
+            Warn "Instala Node.js desde https://nodejs.org para tener IA gratuita."
+        }
+    }
+    # Now install opencode
     if (Has npm) {
-        if (Confirm "Instalar OpenCode con npm?") {
-            npm install -g opencode-ai 2>$null
-            Ok "OpenCode instalado"
-        } else { Info "OpenCode omitido. NeuroPA funcionara sin IA hasta que lo instales." }
-    } else {
-        Warn "Node.js/npm no detectado. OpenCode es opcional."
-        Info "Para IA gratis despues: instala Node.js desde https://nodejs.org y ejecuta: npm install -g opencode-ai"
+        Write-Host ""
+        Info "Instalando OpenCode (IA gratuita, no requiere API key)…"
+        Run-Native { npm install -g opencode-ai }
+        if (Has opencode -or (Has opencode-ai)) {
+            Ok "OpenCode instalado — IA gratuita lista"
+        } else {
+            Warn "OpenCode no se detecto tras instalar. Puedes probar manualmente: npm install -g opencode-ai"
+            Info "Sin OpenCode, NeuroPA arrancara pero NO podra responder mensajes."
+            Info "Alternativa: configura OpenRouter (gratis) en Ajustes dentro de NeuroPA."
+        }
     }
 }
 

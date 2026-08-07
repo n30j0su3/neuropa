@@ -325,6 +325,15 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.post("/api/shutdown", dependencies=[Depends(require_auth)])
+    def shutdown() -> dict[str, str]:
+        import os, signal, threading
+        def _delayed_shutdown():
+            import time; time.sleep(0.5)
+            os.kill(os.getpid(), signal.SIGINT)
+        threading.Thread(target=_delayed_shutdown, daemon=True).start()
+        return {"status": "shutting down"}
+
     @app.get("/api/inbox", dependencies=[Depends(require_auth)])
     def list_inbox() -> list[dict[str, Any]]:
         return [x.to_dict() for x in database.list("inbox")]
