@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -8,6 +9,35 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_MODEL = "opencode/laguna-s-2.1-free"
+
+
+def _discover_opencode() -> str:
+    """Best-effort discovery of the opencode binary.
+
+    Checks PATH first, then common npm-global install paths on Windows,
+    macOS and Linux. Returns the absolute path or an empty string when not
+    found so the caller can report a clean unavailability state.
+    """
+    found = shutil.which("opencode")
+    if found:
+        return found
+    home = Path(os.path.expanduser("~"))
+    candidates = [
+        home / ".opencode" / "bin" / "opencode",          # macOS / Linux fallback
+        home / "AppData" / "Roaming" / "npm" / "opencode.cmd",  # Windows npm-global
+        home / "AppData" / "Roaming" / "npm" / "opencode.ps1",
+        Path("C:/Program Files/nodejs/opencode.cmd"),
+        Path("C:/Program Files (x86)/nodejs/opencode.cmd"),
+        Path("/usr/local/bin/opencode"),
+        Path("/opt/homebrew/bin/opencode"),
+    ]
+    for c in candidates:
+        try:
+            if c.is_file() and os.access(c, os.X_OK):
+                return str(c)
+        except OSError:
+            continue
+    return ""
 
 
 class OpenCodeError(RuntimeError):
@@ -52,14 +82,26 @@ def parse_jsonl(output: str) -> dict[str, Any]:
 class OpenCodeCLI:
     name = "opencode_free"
 
-    def __init__(self, executable: str = "opencode", timeout: int = 120, cache_ttl: int = 60):
-        self.executable = executable
+    def __init__(self, executable: str | None = None, timeout: int = 120, cache_ttl: int = 60):
+        # Allow override via env var so users can point at npm-global opencode
+        # without requiring it on PATH (Windows installs it under %LOCALAPPDATA%\npm).
+        env_exe = os.environ.get("NEUROPA_OPENCODE_BIN")
+        if executable:
+            self.executable = executable
+        elif env_exe:
+            self.executable = env_exe
+        else:
+            self.executable = _discover_opencode()
         self.timeout = timeout
         self.cache_ttl = cache_ttl
         self._models: list[str] | None = None
         self._models_at = 0.0
 
     def health(self) -> bool:
+        if not self.executable:
+            return False
+        if os.path.isabs(self.executable):
+            return os.path.isfile(self.executable) and os.access(self.executable, os.X_OK)
         return shutil.which(self.executable) is not None
 
     def list_models(self) -> list[str]:

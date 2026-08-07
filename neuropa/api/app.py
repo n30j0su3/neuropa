@@ -281,7 +281,7 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
     today = TodayService(database)
     wiki = WikiService(database.path.parent)
     memory = MemoryClaimService(database, wiki=wiki)
-    app = FastAPI(title="NeuroPA Local API", version="0.2.0")
+    app = FastAPI(title="NeuroPA Local API", version="0.2.0", docs_url="/api/docs", redoc_url=None)
     frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
     assets_dir = frontend_dir / "assets"
     if assets_dir.is_dir():
@@ -301,6 +301,20 @@ def create_app(db: Database | None = None, router: ProviderRouter | None = None,
 
     @app.get("/")
     def frontend() -> FileResponse:
+        return FileResponse(frontend_dir / "index.html", media_type="text/html")
+
+    @app.get("/docs")
+    def docs() -> FileResponse:
+        docs_file = frontend_dir / "docs.html"
+        if docs_file.is_file():
+            return FileResponse(docs_file, media_type="text/html")
+        return FileResponse(frontend_dir / "index.html", media_type="text/html")
+
+    @app.get("/favicon.ico")
+    def favicon() -> FileResponse:
+        fav = frontend_dir / "favicon.ico"
+        if fav.is_file():
+            return FileResponse(fav, media_type="image/x-icon")
         return FileResponse(frontend_dir / "index.html", media_type="text/html")
 
     @app.get("/api/token")

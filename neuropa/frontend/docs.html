@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroPA · Documentación</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg-soft: #181b23;
+    --bg-card: #1d212b;
+    --line: #2a3142;
+    --text: #e8ecf2;
+    --text-dim: #8a93a4;
+    --text-mute: #5c6573;
+    --cyan: #40E0D0;
+    --cyan-soft: rgba(64, 224, 208, 0.18);
+    --cyan-line: rgba(64, 224, 208, 0.35);
+    --accent: #ffb86b;
+    --good: #4ade80;
+    --bad: #ef4444;
+    --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.55; }
+  body { min-height: 100vh; }
+
+  /* ─── Header ─── */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(15, 17, 23, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 28px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .logo {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--cyan) 0%, #06b6d4 100%);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-weight: 700; color: var(--bg); font-size: 16px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  header .pill {
+    background: var(--cyan-soft); color: var(--cyan);
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+  }
+  header .right { margin-left: auto; display: flex; gap: 8px; }
+  header .right a {
+    color: var(--text-dim); text-decoration: none; padding: 6px 12px;
+    border-radius: 8px; font-size: 13px; transition: all 0.18s ease;
+  }
+  header .right a:hover { background: var(--bg-card); color: var(--text); }
+  header .right a.primary { background: var(--cyan); color: var(--bg); font-weight: 600; }
+  header .right a.primary:hover { background: #5ce5d4; }
+
+  /* ─── Layout ─── */
+  .layout { display: grid; grid-template-columns: 260px 1fr; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  /* ─── Sidebar ─── */
+  .sidebar { padding: 28px 16px; border-right: 1px solid var(--line); height: calc(100vh - 65px); overflow-y: auto; position: sticky; top: 65px; }
+  .sidebar h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-mute); padding: 18px 12px 6px; font-weight: 600; }
+  .sidebar a { display: block; padding: 7px 12px; color: var(--text-dim); text-decoration: none; font-size: 14px; border-radius: 6px; transition: all 0.15s ease; }
+  .sidebar a:hover { background: var(--bg-card); color: var(--text); }
+  .sidebar a.active { background: var(--cyan-soft); color: var(--cyan); font-weight: 500; }
+
+  /* ─── Main ─── */
+  main { padding: 36px 40px; max-width: 880px; }
+  @media (max-width: 800px) { main { padding: 24px 18px; } }
+  main h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; line-height: 1.2; }
+  main .lede { font-size: 17px; color: var(--text-dim); margin-bottom: 28px; }
+  main h2 { font-size: 22px; font-weight: 600; margin: 38px 0 14px; letter-spacing: -0.01em; }
+  main h3 { font-size: 17px; font-weight: 600; margin: 24px 0 10px; }
+  main p { margin-bottom: 14px; color: var(--text); }
+  main ul, main ol { margin: 0 0 16px 22px; }
+  main li { margin-bottom: 6px; color: var(--text); }
+  main li::marker { color: var(--cyan); }
+  main strong { color: var(--text); font-weight: 600; }
+  main code { background: var(--bg-card); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; color: var(--cyan); }
+  main pre { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 12px 0 18px; }
+  main pre code { background: none; padding: 0; color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  /* ─── Cards ─── */
+  .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 14px; transition: all 0.18s ease; }
+  .card:hover { border-color: var(--cyan-line); }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 14px; color: var(--text-dim); margin: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ─── Prompt examples ─── */
+  .prompt { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s ease; }
+  .prompt:hover { border-color: var(--cyan-line); transform: translateX(3px); }
+  .prompt .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--cyan); font-weight: 600; margin-bottom: 4px; }
+  .prompt .text { color: var(--text); font-size: 14px; }
+
+  /* ─── Notice ─── */
+  .notice { padding: 14px 18px; border-radius: 10px; margin: 14px 0; font-size: 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .notice-info { background: rgba(64, 224, 208, 0.06); border-left: 3px solid var(--cyan); color: var(--text); }
+  .notice-warn { background: rgba(245, 158, 11, 0.06); border-left: 3px solid var(--warn); color: var(--text); }
+  .notice .icon { font-size: 18px; flex-shrink: 0; }
+
+  /* ─── Steps ─── */
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0 0 24px; }
+  ol.steps li { counter-increment: step; padding: 12px 0 12px 48px; position: relative; border-bottom: 1px solid var(--line); }
+  ol.steps li:last-child { border-bottom: 0; }
+  ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: var(--cyan-soft); color: var(--cyan); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+
+  /* ─── Footer ─── */
+  footer { border-top: 1px solid var(--line); padding: 32px 40px; text-align: center; color: var(--text-mute); font-size: 13px; margin-top: 60px; }
+  footer a { color: var(--cyan); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">N</div>
+  <h1>NeuroPA</h1>
+  <span class="pill">Documentación</span>
+  <div class="right">
+    <a href="/">← Volver a la app</a>
+    <a href="https://github.com/n30j0su3/neuropa" target="_blank" rel="noopener">GitHub</a>
+    <a href="/docs" class="primary">Docs</a>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <h3>Empezar</h3>
+    <a href="#inicio" class="active">Bienvenida</a>
+    <a href="#instalar">Instalar</a>
+    <a href="#primera-sesion">Primera sesión</a>
+    <a href="#atajos">Atajos de teclado</a>
+
+    <h3>Conceptos</h3>
+    <a href="#memoria">Memoria persistente</a>
+    <a href="#proveedores">Proveedores IA</a>
+    <a href="#modos">Modos de agente</a>
+    <a href="#enfoque">Temporizador de enfoque</a>
+
+    <h3>Prompts</h3>
+    <a href="#prompts-productividad">Productividad</a>
+    <a href="#prompts-creativos">Creatividad</a>
+    <a href="#prompts-aprendizaje">Aprendizaje</a>
+    <a href="#prompts-investigacion">Investigación</a>
+
+    <h3>Avanzado</h3>
+    <a href="#api">API local</a>
+    <a href="#datos">Tus datos</a>
+    <a href="#desinstalar">Desinstalar</a>
+    <a href="#solucionar">Solucionar problemas</a>
+  </aside>
+
+  <main>
+
+    <section id="inicio">
+      <h1>NeuroPA</h1>
+      <p class="lede">Un espacio preconfigurado para usar IA gratis, fácil, sin parte técnica. Sin cuenta, sin telemetría, sin diagnóstico médico. Privado por defecto.</p>
+
+      <div class="notice notice-info">
+        <span class="icon">★</span>
+        <div>NeuroPA está diseñado para aprovechar tu potencial mental y tus multi-ideas — especialmente si tu cerebro trabaja diferente, pero abierto y útil para todos. <strong>No es una herramienta médica ni de diagnóstico.</strong></div>
+      </div>
+
+      <h2>Qué hace</h2>
+      <div class="grid-2">
+        <div class="card"><h4>Conversaciones con IA</h4><p>Modelos gratuitos locales o remotos, sin enviar tus datos a nadie.</p></div>
+        <div class="card"><h4>Memoria persistente</h4><p>Le dices "recuerda que..." y lo guarda para futuras sesiones.</p></div>
+        <div class="card"><h4>Captura rápida</h4><p>Bandeja de entrada para anotar ideas sin perder el foco.</p></div>
+        <div class="card"><h4>Temporizador de enfoque</h4><p>Pomodoro local con WebSocket. Sin servidores externos.</p></div>
+        <div class="card"><h4>Sesiones organizadas</h4><p>Cada conversación es una sesión. Etiquetas, búsqueda, continuidad.</p></div>
+        <div class="card"><h4>100% local-first</h4><p>Tus datos viven en tu equipo. Tú decides si compartes.</p></div>
+      </div>
+    </section>
+
+    <section id="instalar">
+      <h2>Instalación</h2>
+      <p>Una sola línea por sistema operativo. El instalador revisa lo que tienes y solo instala lo que falta.</p>
+
+      <h3>macOS / Linux</h3>
+      <pre><code>curl -fsSL https://raw.githubusercontent.com/n30j0su3/neuropa/main/scripts/quick-start.sh | bash</code></pre>
+
+      <h3>Windows (PowerShell)</h3>
+      <pre><code>irm https://raw.githubusercontent.com/n30j0su3/neuropa/main/scripts/quick-start.ps1 | iex</code></pre>
+
+      <h3>Qué hace el instalador</h3>
+      <ol class="steps">
+        <li>Detecta <code>git</code> y lo instala si falta</li>
+        <li>Te pregunta dónde clonar el repo (por defecto <code>~/neuropa</code>)</li>
+        <li>Verifica <code>Python 3.8+</code></li>
+        <li>Instala <code>uv</code> (gestor de entorno rápido)</li>
+        <li>Instala <code>Node.js</code> y <code>OpenCode CLI</code> (IA gratuita sin clave)</li>
+        <li>Registra la ruta de OpenCode en la variable de entorno <code>NEUROPA_OPENCODE_BIN</code></li>
+        <li>Crea un acceso directo <code>NeuroPA.bat</code> (Windows) o <code>NeuroPA.command</code> (Mac) en tu escritorio</li>
+      </ol>
+
+      <div class="notice notice-warn">
+        <span class="icon">!</span>
+        <div>En Windows el instalador te preguntará dónde instalar. La ruta por defecto es <code>%USERPROFILE%\neuropa</code>, pero puedes usar <code>C:\dev\neuropa</code> o cualquier otra carpeta.</div>
+      </div>
+    </section>
+
+    <section id="primera-sesion">
+      <h2>Primera sesión</h2>
+      <ol class="steps">
+        <li>Doble-click en <strong>NeuroPA.bat</strong> (Windows) o <strong>NeuroPA.command</strong> (Mac/Linux). Se abre tu navegador automáticamente.</li>
+        <li>Escribe tu primer mensaje. Sin tutoriales, sin wizards.</li>
+        <li>Prueba decir: <em>"Recuerda que mi proyecto principal se llama Atlas."</em> Lo verás persistido en Guardados.</li>
+        <li>Explora las vistas del menú lateral: Hoy, Memoria, Ajustes, Artefactos.</li>
+      </ol>
+    </section>
+
+    <section id="atajos">
+      <h2>Atajos de teclado</h2>
+      <ul>
+        <li><code>Ctrl + K</code> · Buscar comandos y vistas</li>
+        <li><code>Ctrl + Enter</code> · Enviar mensaje</li>
+        <li><code>Ctrl + /</code> · Cambiar modo de agente</li>
+        <li><code>Ctrl + .</code> · Abrir/cerrar lista de sesiones</li>
+        <li><code>Esc</code> · Cerrar paneles abiertos</li>
+      </ul>
+    </section>
+
+    <section id="memoria">
+      <h2>Memoria persistente</h2>
+      <p>NeuroPA recuerda lo que le pides explícitamente. No inventa, no guarda contexto implícito.</p>
+
+      <h3>Cómo guardar</h3>
+      <p>Usa frases naturales. El sistema detecta patrones como:</p>
+      <ul>
+        <li><em>"Recuerda que..."</em></li>
+        <li><em>"Memoriza que..."</em></li>
+        <li><em>"Recuerda que mi..."</em> / <em>"Recordá que..."</em> / <em>"Recuerde que..."</em></li>
+        <li><em>"Remember that..."</em> / <em>"Save in memory that..."</em></li>
+      </ul>
+
+      <h3>Cómo recuperar</h3>
+      <p>Solo pregunta directamente. Si NeuroPA tiene evidencia, te la da con su fuente. Si no, dice <em>"No tengo evidencia sobre eso todavía"</em> — nunca inventa.</p>
+
+      <div class="notice notice-info">
+        <span class="icon">★</span>
+        <div>Los recuerdos tienen un nivel de confianza (0.85 cuando los dices tú, 0.5–0.7 cuando vienen de web, 1.0 cuando son facts verificados). Esto evita alucinaciones disfrazadas de memoria.</div>
+      </div>
+    </section>
+
+    <section id="proveedores">
+      <h2>Proveedores IA</h2>
+      <p>NeuroPA usa tres canales según el modo:</p>
+
+      <h3>OpenCode (gratis, sin clave)</h3>
+      <p>8 modelos disponibles sin registrarte ni pagar. Recomendado para empezar.</p>
+      <ul>
+        <li><code>opencode/laguna-s-2.1-free</code> — default, balance velocidad/calidad</li>
+        <li><code>opencode/big-pickle</code> — creativo, formato más libre</li>
+        <li><code>opencode/deepseek-v4-flash-free</code> — rápido</li>
+        <li><code>opencode/ling-3.0-flash-free</code> — multilingüe</li>
+        <li><code>opencode/longcat-2.0-free</code> — contexto largo</li>
+        <li>Y tres más.</li>
+      </ul>
+
+      <h3>OpenRouter (BYOK)</h3>
+      <p>Trae tu propia clave. 100+ modelos incluyendo free. Configúrala en <strong>Ajustes</strong>.</p>
+
+      <h3>Local (Ollama)</h3>
+      <p>Si tienes Ollama corriendo en <code>localhost:11434</code>, NeuroPA lo detecta automáticamente.</p>
+    </section>
+
+    <section id="modos">
+      <h2>Modos de agente</h2>
+      <p>Los modos cambian el <strong>estilo</strong> de la respuesta, no la sustituyen. Tu pregunta siempre es lo primero.</p>
+      <ul>
+        <li><strong>Claridad</strong> · respuestas estructuradas y resumidas</li>
+        <li><strong>Creativo</strong> · más expresivo, con metáforas</li>
+        <li><strong>Aprendiz</strong> · explica paso a paso, pregunta antes de avanzar</li>
+        <li><strong>Coaching</strong> · hace preguntas en vez de dar respuestas directas</li>
+      </ul>
+    </section>
+
+    <section id="enfoque">
+      <h2>Temporizador de enfoque</h2>
+      <p>Pomodoro local sin servidores externos. WebSocket directo entre tu navegador y NeuroPA.</p>
+      <p>25/5 por defecto. Configurable. Al terminar una sesión puedes guardar lo que hiciste como un artefacto.</p>
+    </section>
+
+    <section id="prompts-productividad">
+      <h2>Prompts: productividad</h2>
+      <div class="prompt" data-prompt="Tengo 10 minutos antes de mi siguiente reunión. Ayúdame a decidir qué hacer ahora mismo.">
+        <div class="label">Decisión rápida</div>
+        <div class="text">Tengo 10 minutos antes de mi siguiente reunión. Ayúdame a decidir qué hacer ahora mismo.</div>
+      </div>
+      <div class="prompt" data-prompt="Tengo estas 3 tareas pendientes: [escribe las tareas]. Ordénalas por impacto y dime por dónde empiezo.">
+        <div class="label">Priorización</div>
+        <div class="text">Tengo estas 3 tareas pendientes: [escribe las tareas]. Ordénalas por impacto y dime por dónde empiezo.</div>
+      </div>
+      <div class="prompt" data-prompt="No puedo concentrarme. ¿Qué suele pasar cuando me bloqueo y qué podría intentar diferente hoy?">
+        <div class="label">Anti-bloqueo</div>
+        <div class="text">No puedo concentrarme. ¿Qué suele pasar cuando me bloqueo y qué podría intentar diferente hoy?</div>
+      </div>
+      <div class="prompt" data-prompt="Resumen ejecutivo de [tema]. Máximo 5 líneas. Sin tecnicismos.">
+        <div class="label">TL;DR</div>
+        <div class="text">Resumen ejecutivo de [tema]. Máximo 5 líneas. Sin tecnicismos.</div>
+      </div>
+    </section>
+
+    <section id="prompts-creativos">
+      <h2>Prompts: creatividad</h2>
+      <div class="prompt" data-prompt="Dame 5 ángulos distintos para [idea]. Ninguno obvio.">
+        <div class="label">Lluvia de ángulos</div>
+        <div class="text">Dame 5 ángulos distintos para [idea]. Ninguno obvio.</div>
+      </div>
+      <div class="prompt" data-prompt="Tengo estas ideas sueltas: [lista]. ¿Hay un hilo conductor que no esté viendo?">
+        <div class="label">Conectar ideas</div>
+        <div class="text">Tengo estas ideas sueltas: [lista]. ¿Hay un hilo conductor que no esté viendo?</div>
+      </div>
+      <div class="prompt" data-prompt="Escribe el primer párrafo de [obra/proyecto] en tres estilos: seco, poético, técnico.">
+        <div class="label">3 estilos</div>
+        <div class="text">Escribe el primer párrafo de [obra/proyecto] en tres estilos: seco, poético, técnico.</div>
+      </div>
+    </section>
+
+    <section id="prompts-aprendizaje">
+      <h2>Prompts: aprendizaje</h2>
+      <div class="prompt" data-prompt="Explícame [concepto] como si tuviera 12 años. Luego dame una versión para adulto con tecnicismos.">
+        <div class="label">Doble explicación</div>
+        <div class="text">Explícame [concepto] como si tuviera 12 años. Luego dame una versión para adulto con tecnicismos.</div>
+      </div>
+      <div class="prompt" data-prompt="Hazme 5 preguntas sobre [tema] para verificar que realmente lo entiendo.">
+        <div class="label">Socrático</div>
+        <div class="text">Hazme 5 preguntas sobre [tema] para verificar que realmente lo entiendo.</div>
+      </div>
+      <div class="prompt" data-prompt="¿Cuáles son los 3 errores más comunes al aprender [X]?">
+        <div class="label">Errores típicos</div>
+        <div class="text">¿Cuáles son los 3 errores más comunes al aprender [X]?</div>
+      </div>
+    </section>
+
+    <section id="prompts-investigacion">
+      <h2>Prompts: investigación</h2>
+      <div class="prompt" data-prompt="¿Qué evidencia tienes sobre [afirmación]? Si no tienes, dilo claramente.">
+        <div class="label">Verificar</div>
+        <div class="text">¿Qué evidencia tienes sobre [afirmación]? Si no tienes, dilo claramente.</div>
+      </div>
+      <div class="prompt" data-prompt="Compara [opción A] vs [opción B] en 4 dimensiones: costo, tiempo, riesgo, retorno.">
+        <div class="label">Comparativa</div>
+        <div class="text">Compara [opción A] vs [opción B] en 4 dimensiones: costo, tiempo, riesgo, retorno.</div>
+      </div>
+      <div class="prompt" data-prompt="Resume las posturas principales sobre [tema controversial]. Sin tomar partido.">
+        <div class="label">Mapa de posturas</div>
+        <div class="text">Resume las posturas principales sobre [tema controversial]. Sin tomar partido.</div>
+      </div>
+    </section>
+
+    <section id="api">
+      <h2>API local</h2>
+      <p>NeuroPA expone una API REST en <code>http://127.0.0.1:8474</code>. Útil para integraciones.</p>
+      <pre><code># Ejemplo: enviar mensaje
+curl -X POST http://127.0.0.1:8474/api/sessions/{id}/messages \
+  -H "Content-Type: application/json" \
+  -b "neuropa_session=tu-cookie" \
+  -d '{"content": "Hola"}'</code></pre>
+
+      <h3>Endpoints principales</h3>
+      <ul>
+        <li><code>GET /api/sessions</code> · lista de sesiones</li>
+        <li><code>POST /api/sessions</code> · crear sesión</li>
+        <li><code>POST /api/sessions/{id}/messages</code> · enviar mensaje</li>
+        <li><code>GET /api/memory/query?q=...</code> · buscar recuerdos</li>
+        <li><code>POST /api/memory/store</code> · guardar hecho</li>
+        <li><code>GET /api/providers/status</code> · estado de proveedores IA</li>
+        <li><code>GET /api/export</code> · backup completo JSON</li>
+        <li><code>POST /api/shutdown</code> · cerrar servidor limpiamente</li>
+      </ul>
+    </section>
+
+    <section id="datos">
+      <h2>Tus datos</h2>
+      <p>Tus sesiones, memoria, identidad y skills viven en:</p>
+      <ul>
+        <li><strong>Windows</strong>: <code>%LOCALAPPDATA%\neuropa\</code></li>
+        <li><strong>macOS / Linux</strong>: <code>~/.local/share/neuropa/</code></li>
+      </ul>
+      <p>El desinstalador <strong>preserva</strong> esta carpeta. Si quieres migrar a otro equipo, copia esa carpeta y ya.</p>
+
+      <h3>Backup completo</h3>
+      <pre><code>uv run neuropa --export backup-2026-08-07.json</code></pre>
+      <p>Genera un JSON con todas tus entidades (sesiones, memoria, tareas, skills, identidad).</p>
+    </section>
+
+    <section id="desinstalar">
+      <h2>Desinstalar</h2>
+      <p>Hay 4 niveles, de menos a más profundo:</p>
+      <ol>
+        <li><strong>Solo NeuroPA</strong> · repo + cache uv. Datos preservados.</li>
+        <li><strong>+ OpenCode</strong> · elimina también la CLI de IA gratuita.</li>
+        <li><strong>+ Node.js</strong> · elimina también Node (afecta otras apps).</li>
+        <li><strong>+ uv + Python</strong> · todo. Solo si estás seguro.</li>
+      </ol>
+      <p>El desinstalador te pregunta qué nivel quieres en cada paso. Tus datos se mantienen hasta que confirmes explícitamente.</p>
+      <pre><code># Windows
+neuropa-uninstall.bat
+
+# macOS / Linux
+bash neuropa-uninstall.sh</code></pre>
+    </section>
+
+    <section id="solucionar">
+      <h2>Solucionar problemas</h2>
+
+      <h3>"Este provider no expone modelos"</h3>
+      <p>Si usabas un provider que decía esto, ya está corregido. La nueva versión detecta modelos con formato <code>opencode/*</code>. Si vuelve a aparecer, reinicia el servidor.</p>
+
+      <h3>OpenCode no se detecta en Windows</h3>
+      <p>npm instala OpenCode en <code>%AppData%\npm\</code>, que no está en PATH por defecto. Solución:</p>
+      <pre><code>$env:PATH = "$env:USERPROFILE\AppData\Roaming\npm;$env:PATH"
+[System.Environment]::SetEnvironmentVariable("NEUROPA_OPENCODE_BIN", "C:\Users\TU_USUARIO\AppData\Roaming\npm\opencode.cmd", "User")</code></pre>
+      <p>El installer 2026-08-07 hace esto automáticamente.</p>
+
+      <h3>Puerto 8474 ocupado</h3>
+      <pre><code>uv run neuropa --port 8475</code></pre>
+
+      <h3>Quiero empezar de cero</h3>
+      <pre><code>uv run neuropa --reset</code></pre>
+      <p>Borra la base de datos local pero conserva tus exports.</p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <p>NeuroPA · AGPL-3.0 · <a href="https://github.com/n30j0su3/neuropa">github.com/n30j0su3/neuropa</a></p>
+  <p style="margin-top: 6px;">No hace claims clínicos, no diagnostica, no sustituye atención profesional.</p>
+</footer>
+
+<script>
+  // Click en un prompt para copiarlo al clipboard
+  document.querySelectorAll('.prompt').forEach(p => {
+    p.addEventListener('click', async () => {
+      const text = p.querySelector('.text').textContent.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        const label = p.querySelector('.label');
+        const original = label.textContent;
+        label.textContent = '✓ Copiado';
+        label.style.color = 'var(--good)';
+        setTimeout(() => { label.textContent = original; label.style.color = ''; }, 1500);
+      } catch (e) {
+        // Fallback: select text
+        const range = document.createRange();
+        range.selectNodeContents(p.querySelector('.text'));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
+    });
+  });
+
+  // Smooth scroll + active state
+  document.querySelectorAll('.sidebar a').forEach(a => {
+    a.addEventListener('click', e => {
+      document.querySelectorAll('.sidebar a').forEach(x => x.classList.remove('active'));
+      a.classList.add('active');
+    });
+  });
+
+  // Highlight active section on scroll
+  const sections = document.querySelectorAll('section');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

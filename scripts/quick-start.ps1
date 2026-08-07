@@ -26,6 +26,31 @@ function Warn($msg)  { Write-Host "  ! $msg" -ForegroundColor Yellow }
 function Fail($msg)  { Write-Host "  X $msg" -ForegroundColor Red }
 function Has($cmd)   { [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
 
+# Search a command in common Windows install locations
+# (npm-global %AppData%\npm and Program Files) in addition to PATH.
+function Find-Command($cmd) {
+    if (Has $cmd) { return (Get-Command $cmd).Path }
+    $candidates = @(
+        (Join-Path $HOME 'AppData\Roaming\npm' "$cmd.cmd"),
+        (Join-Path $HOME 'AppData\Roaming\npm' "$cmd.ps1"),
+        "C:\Program Files\nodejs\$cmd.cmd",
+        "C:\Program Files (x86)\nodejs\$cmd.cmd"
+    )
+    foreach ($p in $candidates) {
+        if (Test-Path $p) { return $p }
+    }
+    return $null
+}
+
+# After npm-global installs, prepend %AppData%\npm to PATH for the
+# current PowerShell session so Has / Get-Command finds it.
+function Refresh-PathForNpm {
+    $npmBin = Join-Path $HOME 'AppData\Roaming\npm'
+    if (Test-Path $npmBin) {
+        $env:PATH = "$npmBin;$env:PATH"
+    }
+}
+
 function Confirm($prompt) {
     $ans = Read-Host "$prompt [S/n]"
     return ($ans -eq "" -or $ans -eq "s" -or $ans -eq "S" -or $ans -eq "y" -or $ans -eq "Y")
@@ -50,11 +75,20 @@ else {
 # ── Step 2: Detect or clone ──
 $RootDir = $PSScriptRoot
 if (-not (Test-Path "$RootDir\pyproject.toml") -and -not (Has neuropa)) {
-    Info "No estas dentro del repo de NeuroPA. Lo clonare en $HOME\neuropa"
-    if (Confirm "Clonar NeuroPA desde GitHub?") {
-        Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git "$HOME\neuropa" }
-        if (Test-Path "$HOME\neuropa\pyproject.toml") {
-            $RootDir = "$HOME\neuropa"
+    # Por defecto usamos $HOME\neuropa, pero el usuario puede elegir otra ruta
+    # (por ejemplo C:\dev\neuropa) para mantener limpio su perfil.
+    $DefaultClone = Join-Path $HOME 'neuropa'
+    $Choice = Read-Host "  Donde instalar NeuroPA? (Enter = $DefaultClone, escribe otra ruta)"
+    if ([string]::IsNullOrWhiteSpace($Choice)) { $CloneTarget = $DefaultClone }
+    else { $CloneTarget = $Choice.Trim() }
+    Info "Voy a clonar NeuroPA en $CloneTarget"
+    if (Test-Path "$CloneTarget\pyproject.toml") {
+        Ok "Repo ya existente en $CloneTarget"
+        $RootDir = $CloneTarget
+    } elseif (Confirm "Clonar NeuroPA desde GitHub en $CloneTarget?") {
+        Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git "$CloneTarget" }
+        if (Test-Path "$CloneTarget\pyproject.toml") {
+            $RootDir = $CloneTarget
             Ok "Repo clonado en $RootDir"
         } else {
             Fail "No pude clonar. Verifica tu conexion o instala git primero."
@@ -148,8 +182,15 @@ if (Has opencode -or (Has opencode-ai)) {
         Write-Host ""
         Info "Instalando OpenCode (IA gratuita, no requiere API key)…"
         Run-Native { npm install -g opencode-ai }
-        if (Has opencode -or (Has opencode-ai)) {
-            Ok "OpenCode instalado — IA gratuita lista"
+        # npm install -g on Windows lands under %AppData%\npm which is NOT
+        # on PATH by default for new sessions. Refresh for current shell AND
+        # persist NEUROPA_OPENCODE_BIN so the runtime can find it later.
+        Refresh-PathForNpm
+        $oc = Find-Command 'opencode'
+        if ($null -ne $oc) {
+            Ok "OpenCode detectado en: $oc"
+            [System.Environment]::SetEnvironmentVariable('NEUROPA_OPENCODE_BIN', $oc, 'User')
+            Info "Variable NEUROPA_OPENCODE_BIN registrada para futuras sesiones."
         } else {
             Warn "OpenCode no se detecto tras instalar. Puedes probar manualmente: npm install -g opencode-ai"
             Info "Sin OpenCode, NeuroPA arrancara pero NO podra responder mensajes."
