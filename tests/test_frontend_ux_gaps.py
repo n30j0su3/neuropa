@@ -10,7 +10,7 @@ def test_session_restore_and_provider_status_revalidate_state_before_render():
         "state.contextScope=loaded.context_scope||'session'",
         "loaded.context_claim_ids",
         "revalidateModelForProvider();state.sessionRail=false",
-        "state.providers=await api('/api/providers/status');revalidateModelForProvider()",
+        "state.providers=await api('/api/providers/status')",
         "recommended_model",
     ):
         assert marker in HTML

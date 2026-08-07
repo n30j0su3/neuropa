@@ -73,20 +73,67 @@ else {
 }
 
 # ── Step 2: Detect or clone ──
+# Two entry paths handled here:
+#   A) Script is being run from inside an existing repo checkout ($RootDir
+#      has pyproject.toml) -> use it directly.
+#   B) Script is run standalone (e.g. via iex) -> ask user where the repo
+#      lives. If a complete checkout is already there, reuse it; if only an
+#      empty/partial folder, run git pull; otherwise clone fresh.
 $RootDir = $PSScriptRoot
-if (-not (Test-Path "$RootDir\pyproject.toml") -and -not (Has neuropa)) {
-    # Por defecto usamos $HOME\neuropa, pero el usuario puede elegir otra ruta
-    # (por ejemplo C:\dev\neuropa) para mantener limpio su perfil.
+$DetectedRepo = $false
+if (Test-Path "$RootDir\pyproject.toml") {
+    Ok "Repo detectado en $RootDir"
+    $DetectedRepo = $true
+}
+
+if (-not $DetectedRepo) {
     $DefaultClone = Join-Path $HOME 'neuropa'
-    $Choice = Read-Host "  Donde instalar NeuroPA? (Enter = $DefaultClone, escribe otra ruta)"
+    $Choice = Read-Host "  Donde esta (o donde instalar) NeuroPA? (Enter = $DefaultClone, escribe otra ruta)"
     if ([string]::IsNullOrWhiteSpace($Choice)) { $CloneTarget = $DefaultClone }
     else { $CloneTarget = $Choice.Trim() }
-    Info "Voy a clonar NeuroPA en $CloneTarget"
+    Info "Voy a usar NeuroPA en $CloneTarget"
+
     if (Test-Path "$CloneTarget\pyproject.toml") {
         Ok "Repo ya existente en $CloneTarget"
         $RootDir = $CloneTarget
+    } elseif (Test-Path $CloneTarget) {
+        # Carpeta existe pero no es un repo NeuroPA valido. Opciones:
+        Warn "La carpeta $CloneTarget existe pero no contiene NeuroPA (sin pyproject.toml)."
+        $Choice2 = Read-Host "  Que hago? (B=borrar y clonar fresh / A=abortar / O=ruta distinta)"
+        switch ($Choice2.ToUpper()) {
+            "B" {
+                Info "Borrando $CloneTarget y clonando fresh..."
+                Run-Native { Remove-Item -Recurse -Force $CloneTarget }
+                Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git $CloneTarget }
+                if (Test-Path "$CloneTarget\pyproject.toml") {
+                    $RootDir = $CloneTarget
+                    Ok "Repo clonado en $RootDir"
+                } else {
+                    Fail "No pude clonar tras borrar. Verifica tu conexion."
+                    exit 1
+                }
+            }
+            "O" {
+                $NewChoice = Read-Host "  Escribe la nueva ruta"
+                $CloneTarget = $NewChoice.Trim()
+                if (Test-Path "$CloneTarget\pyproject.toml") {
+                    $RootDir = $CloneTarget
+                    Ok "Repo encontrado en $RootDir"
+                } else {
+                    Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git $CloneTarget }
+                    if (Test-Path "$CloneTarget\pyproject.toml") {
+                        $RootDir = $CloneTarget
+                        Ok "Repo clonado en $RootDir"
+                    } else { Fail "No pude clonar. Verifica tu conexion." ; exit 1 }
+                }
+            }
+            default {
+                Fail "Abortado por el usuario. Borra la carpeta o elige otra ruta."
+                exit 1
+            }
+        }
     } elseif (Confirm "Clonar NeuroPA desde GitHub en $CloneTarget?") {
-        Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git "$CloneTarget" }
+        Run-Native { git clone --depth 1 https://github.com/n30j0su3/neuropa.git $CloneTarget }
         if (Test-Path "$CloneTarget\pyproject.toml") {
             $RootDir = $CloneTarget
             Ok "Repo clonado en $RootDir"
@@ -231,6 +278,28 @@ Write-Host "  Para arrancar: doble-click en 'NeuroPA.bat' de tu escritorio" -For
 Write-Host "  O desde terminal:  cd $RootDir ; uv run neuropa" -ForegroundColor DarkGray
 Write-Host "  URL:               http://127.0.0.1:8474" -ForegroundColor Cyan
 Write-Host ""
+
+# ── Step 8: Ofrecer actualizar repo (si es un checkout git) ──
+if (Has git) {
+    Push-Location $RootDir
+    try {
+        $gitCheck = git rev-parse --is-inside-work-tree 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            if (Confirm "Quieres verificar actualizaciones del repo? (git pull)") {
+                Info "Ejecutando git pull..."
+                Run-Native { git pull --ff-only }
+                if ($LASTEXITCODE -eq 0) {
+                    Ok "Repo actualizado a la ultima version."
+                } else {
+                    Warn "git pull tuvo conflictos. Tu codigo local difiere del remoto."
+                    Info "Si quieres reinstalar: cierra NeuroPA, borra $RootDir (tus datos en %LOCALAPPDATA%\neuropa estan a salvo) y vuelve a correr el installer."
+                }
+            }
+        }
+    } finally { Pop-Location }
+}
+
 if (Confirm "Arrancar NeuroPA ahora?") {
     uv run neuropa
 }
