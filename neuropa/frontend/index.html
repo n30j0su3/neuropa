@@ -96,7 +96,7 @@
   .composer-input-shell textarea{min-height:44px;max-height:132px;padding:10px 11px;line-height:1.4}
   .composer-footer{display:flex;min-height:24px;margin-top:2px;padding:0 7px;gap:6px}
   .composer-footer .egress{display:flex;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px}
-  .composer-footer .processing-status{margin-left:auto;min-height:24px;padding:0}
+  .composer-footer .processing-status{margin-left:auto;min-height:24px;padding:0}.status-spinner{width:12px;height:12px;border:2px solid var(--cyan-soft);border-top-color:var(--cyan);border-radius:50%;display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.status-tip{color:var(--muted);font-size:11px}
 }
 
 @media(prefers-reduced-motion:reduce){.composer-input-shell,.send-btn::before,.composer-collapse span{transition:none}}
@@ -135,7 +135,7 @@
   const formatDurationMs=(since)=>{if(!since) return '0s';const elapsed=Math.max(0,Date.now()-Number(since||0));const totalSeconds=Math.round(elapsed/1000);return `${totalSeconds}s`};
   function assistantUsageSummary(message){if(!message) return null;const usage=message.usage||{};const input=pickMetric(usage,['input_tokens','prompt_tokens','input','input_tokens_used']);const output=pickMetric(usage,['output_tokens','completion_tokens','output','output_tokens_used']);const elapsed=pickMetric(usage,['elapsed','latency_s','elapsed_seconds']);const ratio=pickMetric(usage,['output_tokens_per_second','toks_per_sec','tps']);const parts=[];if(Number.isFinite(input))parts.push(`Entradas: ${Math.round(input)}`);if(Number.isFinite(output))parts.push(`Salidas: ${Math.round(output)}`);if(Number.isFinite(elapsed))parts.push(`Tiempo: ${elapsed.toFixed(2)}s`);if(Number.isFinite(ratio))parts.push(`Velocidad: ${ratio.toFixed(2)} tok/s`);return parts.length?parts.join(' · '):null;}
   function pickMetric(value,aliases){for(const key of aliases){const raw=value?.[key];const n=Number(raw);if(Number.isFinite(n)&&n>=0)return n}return null}
-  function statusLine(){if(!state.loading)return null;return make('span',{id:'processing-status','aria-live':'polite',class:'processing-status',text:`Procesando… (${formatDurationMs(state.waitingSince)})`})}
+  function statusLine(){if(!state.loading)return null;const elapsed=state.waitingSince?formatDurationMs(state.waitingSince):'0s';const tips=['Trabajando…','Si tarda, puedes detener sin perder lo escrito.','Los entregables grandes pueden tomar 1-3 min.','Tu mensaje y sesión están guardados localmente.'];const tipIdx=Math.floor((state.waitingSince?Math.round((Date.now()-state.waitingSince)/4000):0))%tips.length;return make('span',{id:'processing-status','aria-live':'polite',class:'processing-status'},[make('span',{class:'status-spinner','aria-hidden':'true'}),make('span',{text:` ${elapsed}`}),make('span',{class:'status-tip',text:` · ${tips[tipIdx]}`})])}
 
   const formatDate=value=>{if(!value)return 'sin fecha';try{return new Date(value).toLocaleString('es-ES',{dateStyle:'medium',timeStyle:'short'})}catch(_){return String(value)}};
   const api=async(path,options={})=>{const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin',signal:options.signal});if(!response.ok){let detail='';try{const body=await response.json();detail=body.detail||''}catch(_){}const error=new Error(`${response.status} ${detail}`.trim());error.status=response.status;throw error}return response.status===204?null:response.json()};
@@ -321,7 +321,7 @@
   function openModelMenu(){selectionPopover($('model-control'),'model-control','Modelo',renderModelOptions)}
   function openContextMenu(){selectionPopover($('context-control'),'context-control','Contexto',renderContextOptions)}
   function localAvailable(){return Boolean(state.providers?.modes?.local?.available)}
-  function startProcessingTicker(){if(state.loadingTicker)clearInterval(state.loadingTicker);state.loadingTicker=window.setInterval(()=>{if(!state.loading){stopProcessingTicker();return};const status=$('processing-status');if(status)status.textContent=`Procesando… (${formatDurationMs(state.waitingSince)})`;const waitMsg=document.querySelector('.message.assistant .waiting-indicator');if(waitMsg)waitMsg.textContent=`Procesando… (${formatDurationMs(state.waitingSince)})`},250)}
+  function startProcessingTicker(){if(state.loadingTicker)clearInterval(state.loadingTicker);state.loadingTicker=window.setInterval(()=>{if(!state.loading){stopProcessingTicker();return};const old=$('processing-status');if(old){const fresh=statusLine();if(fresh){old.replaceWith(fresh)}}const waitMsg=document.querySelector('.message.assistant .waiting-indicator');if(waitMsg){const elapsed=state.waitingSince?formatDurationMs(state.waitingSince):'0s';waitMsg.textContent=`Trabajando… (${elapsed})`}},500)}
   function stopProcessingTicker(){if(state.loadingTicker){clearInterval(state.loadingTicker);state.loadingTicker=null}}
   function togglePrimaryRail(){state.primaryRail=!state.primaryRail;localStorage.setItem('primaryRail',state.primaryRail?'1':'0');shell()}
   function closeAllSessionPopover(){state.sessionRail=false;renderWorkspace();}

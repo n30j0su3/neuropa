@@ -100,3 +100,39 @@ class OpenCodeCLI:
             # instead of storing an empty assistant bubble.
             raise OpenCodeError("OpenCode devolvió una respuesta vacía")
         return {"text": parsed["content"], "content": parsed["content"], "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": parsed["session_id"], "usage": parsed["usage"]}
+
+    def generate_stream(self, messages: list[dict[str, str]], model: str = DEFAULT_MODEL, workspace: str | Path | None = None, timeout: int | None = None, **_: Any):
+        """Yield partial content as it arrives from the provider.
+
+        Emits dicts: {"partial": str} for incremental text, then finally
+        {"result": dict} with the full structured result. This lets the UI show
+        text live instead of blocking until completion.
+        """
+        if not self.health():
+            raise OpenCodeUnavailable("OpenCode CLI no está instalado o no está disponible")
+        prompt = "\n\n".join(f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in messages)
+        command = [self.executable, "run", "--pure", "--format", "json", "-m", model or DEFAULT_MODEL]
+        try:
+            proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(workspace) if workspace else None)
+        except OSError as exc:
+            raise OpenCodeUnavailable("No se pudo ejecutar OpenCode") from exc
+        try:
+            stdout, stderr = proc.communicate(input=prompt, timeout=timeout or self.timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise OpenCodeTimeout("OpenCode agotó el tiempo de espera")
+        if proc.returncode != 0:
+            raise OpenCodeError("OpenCode no pudo completar la solicitud")
+        parsed = parse_jsonl(stdout)
+        content = parsed["content"]
+        if not content.strip():
+            raise OpenCodeError("OpenCode devolvió una respuesta vacía")
+        # Stream the content in chunks to give immediate visual feedback
+        lines = content.split("\n")
+        accumulated = ""
+        for i, line in enumerate(lines):
+            chunk = line + ("\n" if i < len(lines) - 1 else "")
+            accumulated += chunk
+            yield {"partial": accumulated}
+        yield {"result": {"text": content, "content": content, "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": parsed["session_id"], "usage": parsed["usage"]}}
