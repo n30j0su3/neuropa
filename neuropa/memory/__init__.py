@@ -5,6 +5,15 @@ from neuropa.domain import Database, MemoryClaim
 from .graph import build_memory_graph, claim_status, normalize_source_node
 
 
+_MEMORY_STOPWORDS = {
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "a", "en", "con",
+    "por", "para", "que", "es", "son", "y", "o", "u", "se", "su", "sus", "mi", "mis", "tu", "tus",
+    "sobre", "como", "cual", "cuales", "quien", "donde", "cuando", "tiene", "tengo",
+    "the", "an", "of", "to", "in", "on", "for", "is", "are", "was", "were", "with", "and",
+    "or", "my", "your", "what", "which", "who", "how", "does", "do",
+}
+
+
 class MemoryClaimService:
     def __init__(self, db: Database, wiki=None):
         self.db = db
@@ -32,11 +41,24 @@ class MemoryClaimService:
         return claim
 
     def search_claims(self, query: str, limit: int = 5) -> list[MemoryClaim]:
-        terms = [t.lower() for t in query.split() if t]
-        claims = [c for c in self.db.list("memory_claim") if not c.superseded_by and all(t in c.claim_text.lower() for t in terms)]
-        claims.sort(key=lambda c: c.created_at, reverse=True)
-        claims.sort(key=lambda c: c.confidence, reverse=True)
-        return claims[:limit]
+        # Token-overlap retrieval: natural-language questions ("que provider
+        # gratuito usa NeuroPA") must find claims even when not every word
+        # appears in the claim. Stopwords and very short tokens are ignored;
+        # a claim needs a meaningful share of the remaining terms to match.
+        terms = [t.lower() for t in query.split() if t and t.lower() not in _MEMORY_STOPWORDS and len(t) > 2]
+        claims = [c for c in self.db.list("memory_claim") if isinstance(c, MemoryClaim) and not c.superseded_by]
+        if not terms:
+            claims.sort(key=lambda c: (c.confidence, c.created_at), reverse=True)
+            return claims[:limit]
+        scored: list[tuple[float, MemoryClaim]] = []
+        for claim in claims:
+            text = claim.claim_text.lower()
+            hits = sum(1 for t in terms if t in text)
+            if hits:
+                scored.append((hits / len(terms), claim))
+        scored.sort(key=lambda item: (item[0], item[1].confidence, item[1].created_at), reverse=True)
+        threshold = 0.34 if len(terms) > 2 else 0.0
+        return [claim for score, claim in scored if score >= threshold][:limit]
 
     def supersede(self, old_id: str, new_claim_id: str) -> MemoryClaim:
         old = self.db.get("memory_claim", old_id)
