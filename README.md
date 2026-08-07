@@ -8,20 +8,35 @@
 
 NeuroPA es **el espacio preconfigurado** para usar IA gratis, fácil y sin parte técnica. Open source (AGPL-3.0), local-first: tus sesiones, tu memoria y tus guardados viven en tu dispositivo. Elige entre IA gratuita (OpenCode), local (Ollama) o tu propia clave (OpenRouter) — sin cuenta, sin suscripción obligatoria y sin telemetría.
 
+Diseñado para aprovechar tu potencial mental y tus multi-ideas — especialmente si tu cerebro trabaja diferente (neurodivergente), pero abierto y útil para todos. No es una herramienta médica ni de diagnóstico: es un espacio donde puedes pensar, crear y trabajar con IA sin lidiar con alucinaciones, configuración técnica ni fragmentos de conversaciones previas.
+
 No hace claims clínicos, no diagnostica y no sustituye atención profesional. La experiencia pública OSS está diseñada para funcionar completa localmente, sin cuenta ni SaaS obligatorio.
 
-## Quick start sin conocimientos técnicos
+## Instalación en 1 comando
 
+NeuroPA revisa lo que tienes y instala lo que falta (con tu permiso). No necesitas saber Python ni configurar nada.
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/n30j0su3/neuropa/main/scripts/quick-start.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/n30j0su3/neuropa/main/scripts/quick-start.ps1 | iex
+```
+
+El instalador hace todo: detecta tu sistema, instala Python/uv si faltan, configura NeuroPA, ofrece IA gratuita (OpenCode) y arranca. Cuando termine, abre `http://127.0.0.1:8474`.
+
+¿Ya tienes el repo? También puedes:
 ```bash
 git clone https://github.com/n30j0su3/neuropa.git
 cd neuropa
-scripts/install.sh
-scripts/run-neuropa.sh
+scripts/quick-start.sh   # macOS/Linux
+scripts\quick-start.ps1  # Windows
 ```
 
-Después abre `http://127.0.0.1:8474`. Para revisar sin cambiar nada: `scripts/install.sh --check`. Para automatización explícita: `scripts/install.sh --yes`.
-
-Guía bilingüe: [docs/SETUP.md](docs/SETUP.md). Manual de uso: [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md). Prompts iniciales: [docs/PROMPTS-INICIALES.md](docs/PROMPTS-INICIALES.md).
+Manual de uso: [docs/MANUAL-DE-USO.md](docs/MANUAL-DE-USO.md). Prompts iniciales: [docs/PROMPTS-INICIALES.md](docs/PROMPTS-INICIALES.md).
 
 ## Uso diario
 
