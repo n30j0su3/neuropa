@@ -256,19 +256,32 @@ if (-not (Test-Path $DestDir)) { $DestDir = $env:USERPROFILE }
 $EasyBat = Join-Path $RootDir 'scripts/neuropa-easy.bat'
 $UninstallBat = Join-Path $RootDir 'scripts/neuropa-uninstall.bat'
 
-# Copia neuropa-easy.bat al escritorio para doble-click
+# Crea accesos .lnk reales: conservan el directorio de trabajo y muestran el icono de NeuroPA.
 if (Test-Path $EasyBat) {
-    $EasyShortcut = Join-Path $DestDir 'NeuroPA.bat'
-    Copy-Item $EasyBat $EasyShortcut -Force
+    $WshShell = New-Object -ComObject WScript.Shell
+    $EasyShortcut = Join-Path $DestDir 'NeuroPA.lnk'
+    $Link = $WshShell.CreateShortcut($EasyShortcut)
+    $Link.TargetPath = $EasyBat
+    $Link.WorkingDirectory = $RootDir
+    $IconPath = Join-Path $RootDir 'neuropa\frontend\favicon.ico'
+    if (Test-Path $IconPath) { $Link.IconLocation = "$IconPath,0" }
+    $Link.Description = 'Abrir NeuroPA'
+    $Link.Save()
     Ok "Acceso directo creado: $EasyShortcut"
 } else {
     Warn "No encontre $EasyBat"
 }
 
-# Ofrece crear acceso al desinstalador (sin forzar — el usuario decide)
 if (Test-Path $UninstallBat) {
-    Write-Host ""
-    Info "Desinstalador (cuando lo necesites): scripts/neuropa-uninstall.bat"
+    $UninstallShortcut = Join-Path $DestDir 'Desinstalar NeuroPA.lnk'
+    $Link = $WshShell.CreateShortcut($UninstallShortcut)
+    $Link.TargetPath = $UninstallBat
+    $Link.WorkingDirectory = $RootDir
+    $IconPath = Join-Path $RootDir 'neuropa\frontend\favicon.ico'
+    if (Test-Path $IconPath) { $Link.IconLocation = "$IconPath,0" }
+    $Link.Description = 'Desinstalar NeuroPA y preservar tus datos por defecto'
+    $Link.Save()
+    Info "Desinstalador creado: $UninstallShortcut"
 }
 
 Write-Host ""

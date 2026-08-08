@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -149,37 +151,58 @@ class OpenCodeCLI:
         return {"text": parsed["content"], "content": parsed["content"], "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": parsed["session_id"], "usage": parsed["usage"]}
 
     def generate_stream(self, messages: list[dict[str, str]], model: str = DEFAULT_MODEL, workspace: str | Path | None = None, timeout: int | None = None, **_: Any):
-        """Yield partial content as it arrives from the provider.
-
-        Emits dicts: {"partial": str} for incremental text, then finally
-        {"result": dict} with the full structured result. This lets the UI show
-        text live instead of blocking until completion.
-        """
+        """Yield provider JSONL as it is emitted; never fake a post-hoc stream."""
         if not self.health():
             raise OpenCodeUnavailable("OpenCode CLI no está instalado o no está disponible")
         prompt = "\n\n".join(f"{m.get('role', 'user').upper()}: {m.get('content', '')}" for m in messages)
         command = [self.executable, "run", "--pure", "--format", "json", "-m", model or DEFAULT_MODEL]
         try:
-            proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(workspace) if workspace else None)
+            proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, cwd=str(workspace) if workspace else None)
         except OSError as exc:
             raise OpenCodeUnavailable("No se pudo ejecutar OpenCode") from exc
-        try:
-            stdout, stderr = proc.communicate(input=prompt, timeout=timeout or self.timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-            raise OpenCodeTimeout("OpenCode agotó el tiempo de espera")
-        if proc.returncode != 0:
+        stdin, stdout, stderr_stream = proc.stdin, proc.stdout, proc.stderr
+        assert stdin is not None and stdout is not None and stderr_stream is not None
+        stdin.write(prompt)
+        stdin.close()
+        lines: queue.Queue[str | None] = queue.Queue()
+        def read_stdout() -> None:
+            try:
+                for line in iter(stdout.readline, ""):
+                    lines.put(line)
+            finally:
+                lines.put(None)
+        threading.Thread(target=read_stdout, daemon=True).start()
+        started = time.monotonic(); content: list[str] = []; usage: dict[str, Any] = {}; session_id = None
+        finished = False
+        while not finished:
+            if time.monotonic() - started > (timeout or self.timeout):
+                proc.kill(); proc.wait()
+                raise OpenCodeTimeout("OpenCode agotó el tiempo de espera")
+            try:
+                line = lines.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            if line is None:
+                finished = True
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            session_id = event.get("sessionID") or event.get("sessionId") or session_id
+            if event.get("type") == "text":
+                value = (event.get("part") or {}).get("text")
+                if isinstance(value, str) and value:
+                    content.append(value)
+                    yield {"partial": "".join(content)}
+            if event.get("type") == "step_finish":
+                raw = (event.get("part") or {}).get("tokens") or event.get("tokens") or {}
+                if isinstance(raw, dict):
+                    usage.update({k: raw[k] for k in ("input", "output", "total", "prompt", "completion") if k in raw})
+        stderr = stderr_stream.read()
+        if proc.wait() != 0:
             raise OpenCodeError("OpenCode no pudo completar la solicitud")
-        parsed = parse_jsonl(stdout)
-        content = parsed["content"]
-        if not content.strip():
+        final = "".join(content)
+        if not final.strip():
             raise OpenCodeError("OpenCode devolvió una respuesta vacía")
-        # Stream the content in chunks to give immediate visual feedback
-        lines = content.split("\n")
-        accumulated = ""
-        for i, line in enumerate(lines):
-            chunk = line + ("\n" if i < len(lines) - 1 else "")
-            accumulated += chunk
-            yield {"partial": accumulated}
-        yield {"result": {"text": content, "content": content, "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": parsed["session_id"], "usage": parsed["usage"]}}
+        yield {"result": {"text": final, "content": final, "provider_used": self.name, "model": model or DEFAULT_MODEL, "session_id": session_id, "usage": usage}}

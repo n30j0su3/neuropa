@@ -6,7 +6,9 @@ REM  - PRESERVA: ~/.local/share/neuropa/ (memoria, skills, identidad)
 REM ════════════════════════════════════════════════════════════════
 setlocal ENABLEDELAYEDEXPANSION
 
-set ROOTDIR=%USERPROFILE%\neuropa
+REM Encuentra el repo desde la ubicación del desinstalador; fallback a la instalación estándar.
+set ROOTDIR=%~dp0..\
+if not exist "%ROOTDIR%\pyproject.toml" set ROOTDIR=%USERPROFILE%\neuropa
 set DATA=%LOCALAPPDATA%\neuropa
 if not defined DATA set DATA=%USERPROFILE%\.local\share\neuropa
 
@@ -35,10 +37,16 @@ if "%OPT%"=="5" (
     exit /b 0
 )
 
-REM ── 1. Borrar repo NeuroPA ────────────────────────────────────
+REM ── 1. Retirar accesos directos de NeuroPA ──────────────────────
+set DESKTOP=%USERPROFILE%\Desktop
+if exist "%DESKTOP%\NeuroPA.lnk" del /q "%DESKTOP%\NeuroPA.lnk"
+if exist "%DESKTOP%\NeuroPA.bat" del /q "%DESKTOP%\NeuroPA.bat"
+if exist "%DESKTOP%\Desinstalar NeuroPA.lnk" del /q "%DESKTOP%\Desinstalar NeuroPA.lnk"
+
+REM ── 2. Borrar repo NeuroPA ────────────────────────────────────
 echo.
 if exist "%ROOTDIR%" (
-    echo  [1] Borrando repositorio %ROOTDIR%...
+    echo  [2] Borrando repositorio %ROOTDIR%...
     rmdir /s /q "%ROOTDIR%"
     echo        OK.
 ) else (

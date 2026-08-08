@@ -26,11 +26,37 @@ class ProviderRouter:
         self.managed_provider = os.getenv("NEUROPA_MANAGED_PROVIDER", "")
         self.managed_key = os.getenv("NEUROPA_MANAGED_KEY", "")
         self.local = ollama or OllamaEngine(os.getenv("NEUROPA_OLLAMA_URL", "http://localhost:11434"))
+        # OpenAI-compatible local servers: LM Studio, llama.cpp and compatible UIs.
+        # They require no secret and are only probed on loopback.
+        raw_local_urls = os.getenv("NEUROPA_LOCAL_OPENAI_URLS", "http://127.0.0.1:1234/v1,http://127.0.0.1:8080/v1,http://127.0.0.1:5000/v1")
+        self.local_openai_urls = [url.rstrip("/") for url in raw_local_urls.split(",") if url.strip()]
+        self._local_openai_models: dict[str, str] = {}
+        self._local_openai_models_at = 0.0
         self.opencode = opencode or OpenCodeCLI(timeout=int(os.getenv("NEUROPA_OPENCODE_TIMEOUT", "300")))
         # Generation timeout shared by every provider lane. A short value (the
         # previous hardcoded 30s) killed any real deliverable generation — e.g.
         # single-file HTML reports — with a 503. Configurable per install.
         self.timeout = int(os.getenv("NEUROPA_PROVIDER_TIMEOUT", "300"))
+
+    def _local_openai_catalog(self) -> dict[str, str]:
+        """Discover local OpenAI-compatible servers without sending any user data."""
+        if time.monotonic() - self._local_openai_models_at < 15:
+            return self._local_openai_models
+        found: dict[str, str] = {}
+        for base_url in self.local_openai_urls:
+            try:
+                request = urllib.request.Request(f"{base_url}/models", headers={"Accept": "application/json"})
+                with urllib.request.urlopen(request, timeout=0.8) as response:
+                    rows = json.loads(response.read().decode()).get("data", [])
+                for row in rows:
+                    model_id = str(row.get("id", "")).strip()
+                    if model_id and model_id not in found:
+                        found[model_id] = base_url
+            except Exception:
+                continue
+        self._local_openai_models = found
+        self._local_openai_models_at = time.monotonic()
+        return found
 
     def _cloud(self, key: str, provider: str) -> OpenAICompatEngine:
         return OpenAICompatEngine(key, base_url=provider if provider.startswith("http") else "https://api.openai.com/v1", models=["gpt-4o-mini"])
@@ -67,7 +93,10 @@ class ProviderRouter:
         if mode == "opencode_free":
             return self.opencode.generate(messages, model=model or DEFAULT_MODEL, workspace=workspace, timeout=self.timeout)
         if mode == "local":
-            selected = model if model and not model.startswith("opencode/") else (self.local.list_models() or ["llama3.2"])[0]
+            local_openai = self._local_openai_catalog()
+            if model and model in local_openai:
+                return self._cloud("", local_openai[model]).generate(messages, model=model, timeout=self.timeout)
+            selected = model if model and not model.startswith("opencode/") else (self.local.list_models() or list(local_openai) or ["llama3.2"])[0]
             return self.local.generate(messages, model=selected, timeout=self.timeout)
         if mode == "managed":
             return self._cloud(self.managed_key, self.managed_provider).generate(messages, model=model or "gpt-4o-mini", timeout=self.timeout)
@@ -79,7 +108,7 @@ class ProviderRouter:
 
     def _available(self, mode: str) -> bool:
         if mode == "opencode_free": return self.opencode.health()
-        if mode == "local": return self.local.health()
+        if mode == "local": return self.local.health() or bool(self._local_openai_catalog())
         if mode == "byok": return bool(self.byok_key) or "openrouter.ai" in self.byok_provider
         return bool((self.managed_key and self.managed_provider) if mode == "managed" else self.byok_key)
 
@@ -92,12 +121,14 @@ class ProviderRouter:
             except Exception:
                 return False, []
         if mode == "local":
-            if not self.local.health():
+            ollama_ready = self.local.health()
+            local_openai = self._local_openai_catalog()
+            if not ollama_ready and not local_openai:
                 return False, []
             try:
-                return True, list(self.local.list_models())
+                return True, list(dict.fromkeys([*(self.local.list_models() if ollama_ready else []), *local_openai.keys()]))
             except Exception:
-                return False, []
+                return bool(local_openai), list(local_openai)
         if mode == "byok" and self._available(mode):
             models = self._openrouter_catalog() if "openrouter.ai" in self.byok_provider else (self.byok_models or ["gpt-4o-mini"])
             return True, self._free_first(models)
@@ -152,7 +183,7 @@ class ProviderRouter:
             },
             "local": {
                 "available": local_available, "healthy": local_available,
-                "description": "Modelos locales vía Ollama", "catalog_known": local_catalog_known,
+                "description": "IA local detectada (Ollama, LM Studio, llama.cpp u OpenAI-compatible)", "catalog_known": local_catalog_known,
                 "privacy": "local", "privacy_label": "local", "cost": "free", "cost_label": "free",
                 "models": local_models,
                 "recommended_model": local_models[0] if local_models else None,
