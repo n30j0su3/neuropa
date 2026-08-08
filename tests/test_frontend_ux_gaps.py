@@ -140,3 +140,19 @@ def test_composer_exposes_processing_status_and_usage_metrics_summary():
     assert "formatDurationMs" in HTML
     assert "assistantUsageSummary" in HTML
     assert "No reportado" in HTML or "contextLabel" in HTML
+
+
+def test_composer_keeps_draft_typing_available_before_a_session_exists():
+    composer_start = HTML.index("function composer()")
+    composer_end = HTML.index("function contextLabel", composer_start)
+    composer = HTML[composer_start:composer_end]
+    assert "disabled:!sessionReady" not in composer
+    assert "placeholder:'Escribe, pregunta o vacía tu mente…'" in composer
+
+
+def test_send_message_creates_a_session_from_a_typed_first_message():
+    send_start = HTML.index("async function sendMessage")
+    send_end = HTML.index("async function setupDetect", send_start)
+    send = HTML[send_start:send_end]
+    assert "await ensureSessionForMessage()" in send
+    assert "async function ensureSessionForMessage()" in HTML
